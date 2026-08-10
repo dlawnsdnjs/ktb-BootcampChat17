@@ -15,13 +15,6 @@ import {
 } from '@vapor-ui/core';
 import authService from '@/services/authService';
 
-/**
- * 로그인 폼은 서버 생존 확인과 독립적으로 렌더링한다.
- *
- * Health Check는 서버 상태를 알려주는 보조 신호일 뿐 로그인 가능 여부를
- * 판단하는 API가 아니다. 실제 로그인 가능 여부는 login 콜백의 응답으로
- * 결정한다.
- */
 export default function LoginForm({ login, redirect, onNavigate }) {
   const [formData, setFormData] = useState({
     email: '',
@@ -47,7 +40,6 @@ export default function LoginForm({ login, redirect, onNavigate }) {
       }
     };
 
-    // 폼을 먼저 그린 다음 보조적인 서버 상태 확인을 시작한다.
     checkServerConnection();
 
     return () => {
@@ -58,8 +50,6 @@ export default function LoginForm({ login, redirect, onNavigate }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    // 버튼 disabled는 렌더링 사이의 짧은 간격을 막지 못할 수 있으므로
-    // 요청 시작 시점에도 중복 제출을 차단한다.
     if (submittingRef.current) return;
 
     submittingRef.current = true;
@@ -93,7 +83,7 @@ export default function LoginForm({ login, redirect, onNavigate }) {
         }}
         render={<Form onSubmit={handleSubmit} />}
       >
-        <div className="text-center mb-4">
+        <div className="mb-4 text-center">
           <img src="/images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
         </div>
 
