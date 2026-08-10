@@ -87,10 +87,8 @@ export default function LoginForm({ login, redirect, onNavigate }) {
           <img src="/images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
         </div>
 
-        {/* 로그인 실패 원인이 밝혀지면 서버 상태 안내는 물러난다. 두 경고가 겹치면
-            더 구체적인 쪽이 묻히고, 늦게 도착한 안내가 오류 문구를 밀어낸다. */}
-        {serverNotice && !error && (
-          <Callout.Root colorPalette="warning" role="status" data-testid="server-status-message">
+        {serverNotice && (
+          <Callout.Root colorPalette="warning" data-testid="server-status-message">
             <Callout.Icon>
               <ErrorCircleIcon />
             </Callout.Icon>
@@ -99,7 +97,7 @@ export default function LoginForm({ login, redirect, onNavigate }) {
         )}
 
         {error && (
-          <Callout.Root colorPalette="warning" role="alert" data-testid="login-error-message">
+          <Callout.Root colorPalette="warning" data-testid="login-error-message">
             <Callout.Icon>
               <ErrorCircleIcon />
             </Callout.Icon>

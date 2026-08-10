@@ -28,13 +28,6 @@ export const getAuthHeaders = (session = loadStoredUser()) => {
   };
 };
 
-/**
- * 요청별 옵션은 Axios config 에 그대로 실어 보낸다.
- *   - `skipAuth`: 인증 헤더를 붙이지 않는다
- *   - `handleAuthError: false`: 401 을 가로채지 않고 호출부로 넘긴다
- *   - `skipRetry`: 자동 재시도를 하지 않는다. 재시도가 부하를 키우거나
- *     같은 작업을 두 번 일으킬 수 있는 요청(로그인·회원가입 등)에 쓴다.
- */
 export const createApiClient = ({
   baseURL = API_BASE_URL,
   getSession = loadStoredUser,
@@ -100,11 +93,7 @@ export const createApiClient = ({
         return Promise.reject(error);
       }
 
-      if (
-        config.skipRetry !== true &&
-        isRetryableError(error) &&
-        config.retryCount < RETRY_CONFIG.maxRetries
-      ) {
+      if (isRetryableError(error) && config.retryCount < RETRY_CONFIG.maxRetries) {
         config.retryCount++;
         const delay = getRetryDelay(config.retryCount);
 
