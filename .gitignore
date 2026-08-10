@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Next.js and other build output
+.next/
+out/
+dist/
+coverage/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.production.example
+
+# Local tooling and OS files
+.DS_Store
+*.log
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java / Maven
+target/
+*.class
+
+# Maven Wrapper downloaded binary
+apps/backend/.mvn/wrapper/maven-wrapper.jar
