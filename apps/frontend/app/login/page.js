@@ -39,6 +39,7 @@ function LoginPageContent() {
     <LoginForm
       login={login}
       redirect={searchParams.get('redirect') || undefined}
+      registered={searchParams.get('registered') === '1'}
       onNavigate={(path) => router.push(path)}
     />
   );

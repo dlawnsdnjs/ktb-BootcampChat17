@@ -24,7 +24,7 @@ public class RegisterRequest {
     @ValidEmail
     private String email;
 
-    @Schema(description = "비밀번호 (최소 8자, 영문자, 숫자, 특수문자 포함)", example = "Password123!", required = true)
+    @Schema(description = "비밀번호 (8~16자, 영문 대문자·소문자, 숫자, 특수문자 포함)", example = "Password123!", required = true)
     @ValidPassword
     private String password;
 }

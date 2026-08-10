@@ -1,6 +1,11 @@
 export const API_REQUEST_METRICS = {
   HEALTH_CHECK: 'ktb-chat.api.health.duration',
   LOGIN: 'ktb-chat.api.auth.login.duration',
+  REGISTER: 'ktb-chat.api.auth.register.duration',
+};
+
+export const UI_METRICS = {
+  REGISTER_REDIRECT: 'ktb-chat.ui.auth.register-redirect.duration',
 };
 
 const getStatus = (result, error) => result?.status || error?.response?.status || 0;
@@ -22,9 +27,7 @@ const recordRequestMetric = (name, startedAt, result, error) => {
         start: startedAt,
         end: finishedAt,
       });
-    } catch {
-      // 일부 브라우저/테스트 환경에서는 사용자 정의 측정 옵션을 지원하지 않는다.
-    }
+    } catch {}
   }
 
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -32,15 +35,11 @@ const recordRequestMetric = (name, startedAt, result, error) => {
   }
 };
 
-/**
- * 요청별 체감 지연을 측정한다.
- * Health Check와 로그인 API는 호출 목적과 지표 이름을 분리해 기록한다.
- */
-export const measureApiRequest = async (name, request) => {
+export const measureDuration = async (name, task) => {
   const startedAt = typeof performance === 'undefined' ? 0 : performance.now();
 
   try {
-    const result = await request();
+    const result = await task();
     recordRequestMetric(name, startedAt, result, null);
     return result;
   } catch (error) {
@@ -48,3 +47,5 @@ export const measureApiRequest = async (name, request) => {
     throw error;
   }
 };
+
+export const measureApiRequest = (name, request) => measureDuration(name, request);
