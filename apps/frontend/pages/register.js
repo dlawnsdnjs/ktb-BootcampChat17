@@ -81,7 +81,7 @@ const Register = () => {
         </div>
 
         {error && (
-          <Callout.Root colorPalette="warning" role="alert" data-testid="register-error-message">
+          <Callout.Root colorPalette="warning" data-testid="register-error-message">
             <Callout.Icon>
               <ErrorCircleIcon />
             </Callout.Icon>
@@ -90,7 +90,7 @@ const Register = () => {
         )}
 
         {success && (
-          <Callout.Root colorPalette="success" role="status" data-testid="register-success-message">
+          <Callout.Root colorPalette="success" data-testid="register-success-message">
             <Callout.Icon>
               <CheckCircleIcon />
             </Callout.Icon>

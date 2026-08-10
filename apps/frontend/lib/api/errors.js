@@ -24,13 +24,6 @@ export const getRetryDelay = (retryCount) => {
   return Math.min(delay, RETRY_CONFIG.maxDelayMs);
 };
 
-/**
- * 인터셉터가 가공한 에러와 원본 Axios 에러에서 같은 방식으로 상태 코드를 읽는다.
- * createHttpError 는 `response` 를 떼고 `status` 만 남기기 때문에 한쪽만 보면 놓친다.
- * 네트워크 오류·타임아웃처럼 응답이 없는 경우는 0 이다.
- */
-export const getErrorStatus = (error) => error?.status ?? error?.response?.status ?? 0;
-
 export const isRetryableError = (error) => {
   if (!error) {
     return false;
