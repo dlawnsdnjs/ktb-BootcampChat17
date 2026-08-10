@@ -100,22 +100,23 @@ class AuthService {
     }
   }
 
-  /**
-   * 회원가입 API 호출
-   * 상태 관리는 AuthContext에서 처리
-   */
   async register(userData) {
+    let response;
+
     try {
-      const response = await api.post('/api/auth/register', userData);
-
-      if (response.data?.success) {
-        return response.data;
-      }
-
-      throw new Error(response.data?.message || '회원가입에 실패했습니다.');
+      response = await measureApiRequest(
+        API_REQUEST_METRICS.REGISTER,
+        () => api.post('/api/auth/register', userData)
+      );
     } catch (error) {
       throw this._handleError(error);
     }
+
+    if (response.data?.success) {
+      return response.data;
+    }
+
+    throw new Error(response.data?.message || '회원가입에 실패했습니다.');
   }
   
   /**
@@ -151,9 +152,6 @@ class AuthService {
     }
   }
 
-  /**
-   * 비밀번호 변경 API 호출
-   */
   async changePassword(currentPassword, newPassword, token, sessionId) {
     try {
       if (!token) {

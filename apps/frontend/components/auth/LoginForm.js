@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ErrorCircleIcon } from '@vapor-ui/icons';
+import { CheckCircleIcon, ErrorCircleIcon } from '@vapor-ui/icons';
 import {
   Box,
   Button,
@@ -15,7 +15,7 @@ import {
 } from '@vapor-ui/core';
 import authService from '@/services/authService';
 
-export default function LoginForm({ login, redirect, onNavigate }) {
+export default function LoginForm({ login, redirect, onNavigate, registered = false }) {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -86,6 +86,15 @@ export default function LoginForm({ login, redirect, onNavigate }) {
         <div className="mb-4 text-center">
           <img src="/images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
         </div>
+
+        {registered && (
+          <Callout.Root colorPalette="success" role="status" data-testid="register-complete-message">
+            <Callout.Icon>
+              <CheckCircleIcon />
+            </Callout.Icon>
+            가입이 완료되었습니다. 로그인해 주세요.
+          </Callout.Root>
+        )}
 
         {serverNotice && (
           <Callout.Root colorPalette="warning" data-testid="server-status-message">

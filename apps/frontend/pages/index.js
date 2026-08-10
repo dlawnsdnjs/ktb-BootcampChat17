@@ -10,6 +10,7 @@ const LoginPage = () => {
     <LoginForm
       login={login}
       redirect={typeof router.query.redirect === 'string' ? router.query.redirect : undefined}
+      registered={router.query.registered === '1'}
       onNavigate={(path) => router.push(path)}
     />
   );
