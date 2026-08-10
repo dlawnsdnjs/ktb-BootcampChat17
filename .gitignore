@@ -17,3 +17,13 @@ coverage/
 # Local tooling and OS files
 .DS_Store
 *.log
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java / Maven
+target/
+*.class
+
+# Maven Wrapper downloaded binary
+apps/backend/.mvn/wrapper/maven-wrapper.jar
