@@ -126,37 +126,51 @@ export const useRoomList = ({
     }
   }, [currentUser, loadRooms]);
 
-  const handleJoinRoom = useCallback(async (roomId) => {
+  const handleJoinRoom = useCallback(async (roomId, password) => {
     if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
       setError({
         title: '채팅방 입장 실패',
         message: '서버와 연결이 끊어져 있습니다.',
         type: 'danger',
       });
-      return;
+      return { success: false };
     }
 
     setJoiningRoom(true);
 
     try {
-      const response = await axiosInstance.post(`/api/rooms/${roomId}/join`, {});
+      const payload = password ? { password } : {};
+      const response = await axiosInstance.post(`/api/rooms/${roomId}/join`, payload);
 
       if (response.data.success) {
         router.push(`/chat/${roomId}`);
+        return { success: true };
       }
+
+      return { success: false };
     } catch (error) {
-      let errorMessage = '입장에 실패했습니다.';
-      if (error.response?.status === 404) {
-        errorMessage = '채팅방을 찾을 수 없습니다.';
-      } else if (error.response?.status === 403) {
-        errorMessage = '채팅방 입장 권한이 없습니다.';
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.message;
+
+      // 비밀번호 불일치는 호출부가 입력창을 유지한 채 안내해야 하므로
+      // 목록 전체 에러로 올리지 않는다.
+      if (status === 403) {
+        return {
+          success: false,
+          passwordRejected: true,
+          message: serverMessage || '비밀번호가 일치하지 않습니다.',
+        };
       }
 
       setError({
         title: '채팅방 입장 실패',
-        message: error.response?.data?.message || errorMessage,
+        message:
+          serverMessage ||
+          (status === 404 ? '채팅방을 찾을 수 없습니다.' : '입장에 실패했습니다.'),
         type: 'danger',
       });
+
+      return { success: false };
     } finally {
       setJoiningRoom(false);
     }

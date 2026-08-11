@@ -220,7 +220,7 @@ public class RoomController {
             content = @Content(schema = @Schema(implementation = JoinRoomSuccessResponse.class))),
         @ApiResponse(responseCode = "400", description = "잘못된 요청",
             content = @Content(schema = @Schema(implementation = StandardResponse.class))),
-        @ApiResponse(responseCode = "401", description = "비밀번호가 일치하지 않음",
+        @ApiResponse(responseCode = "403", description = "비밀번호가 일치하지 않음",
             content = @Content(schema = @Schema(implementation = StandardResponse.class),
                 examples = @ExampleObject(value = "{\"success\":false,\"message\":\"비밀번호가 일치하지 않습니다.\"}"))),
         @ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음",
@@ -252,7 +252,7 @@ public class RoomController {
 
         } catch (RuntimeException e) {
             if (e.getMessage().contains("비밀번호")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(StandardResponse.error("비밀번호가 일치하지 않습니다."));
             }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

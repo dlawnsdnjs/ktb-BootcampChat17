@@ -102,4 +102,64 @@ describe('useRoomList', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.rooms).toEqual([{ _id: 'room-1' }]);
   });
+
+  describe('handleJoinRoom', () => {
+    it('sends the password when one is supplied', async () => {
+      axiosInstance.post.mockResolvedValueOnce({ data: { success: true } });
+      const { result } = renderRoomList();
+
+      await act(async () => {
+        await result.current.handleJoinRoom('room-1', 'secret');
+      });
+
+      expect(axiosInstance.post).toHaveBeenCalledWith('/api/rooms/room-1/join', {
+        password: 'secret',
+      });
+    });
+
+    it('omits the password field for open rooms', async () => {
+      axiosInstance.post.mockResolvedValueOnce({ data: { success: true } });
+      const { result } = renderRoomList();
+
+      await act(async () => {
+        await result.current.handleJoinRoom('room-1');
+      });
+
+      expect(axiosInstance.post).toHaveBeenCalledWith('/api/rooms/room-1/join', {});
+    });
+
+    it('reports a rejected password to the caller without raising a list error', async () => {
+      axiosInstance.post.mockRejectedValueOnce({
+        response: { status: 403, data: { message: '비밀번호가 일치하지 않습니다.' } },
+      });
+      const { result } = renderRoomList();
+
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.handleJoinRoom('room-1', 'wrong');
+      });
+
+      expect(outcome).toEqual({
+        success: false,
+        passwordRejected: true,
+        message: '비밀번호가 일치하지 않습니다.',
+      });
+      expect(result.current.error).toBeNull();
+    });
+
+    it('surfaces non-password failures as a list error', async () => {
+      axiosInstance.post.mockRejectedValueOnce({
+        response: { status: 404, data: {} },
+      });
+      const { result } = renderRoomList();
+
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.handleJoinRoom('room-1');
+      });
+
+      expect(outcome).toEqual({ success: false });
+      expect(result.current.error?.message).toBe('채팅방을 찾을 수 없습니다.');
+    });
+  });
 });
