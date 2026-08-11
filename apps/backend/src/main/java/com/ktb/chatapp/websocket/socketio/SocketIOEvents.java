@@ -63,6 +63,9 @@ public final class SocketIOEvents {
      */
     public static final String MESSAGE = "message";
 
+    /** 저장 완료 ACK. Payload: { clientMessageId, messageId, roomId, timestamp } */
+    public static final String MESSAGE_ACK = "messageAck";
+
     /**
      * 에러 알림
      * Payload: { code, message }

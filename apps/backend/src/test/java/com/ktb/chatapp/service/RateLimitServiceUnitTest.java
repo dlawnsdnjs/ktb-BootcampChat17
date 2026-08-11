@@ -35,7 +35,7 @@ class RateLimitServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        rateLimitService = new RateLimitService(rateLimitStore);
+        rateLimitService = new RateLimitService(rateLimitStore, null);
         ReflectionTestUtils.setField(rateLimitService, "hostName", HOST_NAME);
     }
 

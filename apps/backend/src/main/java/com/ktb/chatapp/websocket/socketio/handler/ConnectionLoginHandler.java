@@ -107,6 +107,7 @@ public class ConnectionLoginHandler {
 
             client.leaveRooms(connectionRooms(getUserDto(client)));
             client.del("user");
+            client.del("userResponse");
             client.disconnect();
 
             log.info("Socket.IO user disconnected: {} ({}) - Total concurrent users: {}",

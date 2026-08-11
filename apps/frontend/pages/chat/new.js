@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { ErrorCircleIcon } from '@vapor-ui/icons';
 import {
@@ -19,8 +19,8 @@ import api from '@/lib/api/client';
 function NewChatRoom() {
   const router = useRouter();
   const { user: currentUser } = useAuth();
+  const roomNameInputRef = useRef(null);
   const [formData, setFormData] = useState({
-    name: '',
     hasPassword: false,
     password: ''
   });
@@ -29,8 +29,9 @@ function NewChatRoom() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const roomName = roomNameInputRef.current?.value?.trim() ?? '';
 
-    if (!formData.name.trim()) {
+    if (!roomName) {
       setError('채팅방 이름을 입력해주세요.');
       return;
     }
@@ -50,7 +51,7 @@ function NewChatRoom() {
       setError('');
 
       const response = await api.post('/api/rooms', {
-          name: formData.name.trim(),
+          name: roomName,
           password: formData.hasPassword ? formData.password : undefined
       });
 
@@ -110,8 +111,7 @@ function NewChatRoom() {
                 required
                 size="lg"
                 placeholder="채팅방 이름을 입력하세요"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                ref={roomNameInputRef}
                 disabled={loading}
                 data-testid="chat-room-name-input"
               />
@@ -150,7 +150,8 @@ function NewChatRoom() {
                   size="lg"
                   placeholder="비밀번호를 입력하세요"
                   value={formData.password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, password: value }))}
+                  onInput={(event) => setFormData(prev => ({ ...prev, password: event.currentTarget.value }))}
                   disabled={loading}
                 />
               </Box>
@@ -160,7 +161,7 @@ function NewChatRoom() {
           <Button
             type="submit"
             size="lg"
-            disabled={loading || !formData.name.trim() || (formData.hasPassword && !formData.password)}
+            disabled={loading || (formData.hasPassword && !formData.password)}
             data-testid="create-chat-room-button"
           >
             {loading ? '생성 중...' : '채팅방 만들기'}

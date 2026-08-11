@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import NewChatRoom from '../new';
+import NewChatRoom from '../../../pages/chat/new';
 
 const mocks = vi.hoisted(() => ({
   currentUser: { token: 'token-1' },

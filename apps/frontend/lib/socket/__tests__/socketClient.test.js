@@ -227,12 +227,54 @@ describe('socketClient', () => {
     const payload = { room: 'room-1', type: 'text', content: 'hello' };
 
     const send = client.sendChatMessageAndWait(payload, socket, { timeoutMs: 1000 });
-    socket.emitToClient('message', { id: 'message-1' });
+    const sentPayload = service.sendOn.mock.calls[0][2];
+    socket.emitToClient('messageAck', { clientMessageId: 'another-message' });
+    socket.emitToClient('messageAck', {
+      clientMessageId: sentPayload.clientMessageId,
+      messageId: 'message-1',
+    });
 
-    await expect(send).resolves.toEqual({ id: 'message-1' });
-    expect(service.sendOn).toHaveBeenCalledWith(socket, 'chatMessage', payload);
-    expect(socket.listenerCount('message')).toBe(0);
+    await expect(send).resolves.toEqual({
+      clientMessageId: sentPayload.clientMessageId,
+      messageId: 'message-1',
+    });
+    expect(sentPayload).toMatchObject(payload);
+    expect(sentPayload.clientMessageId).toEqual(expect.any(String));
+    expect(socket.listenerCount('messageAck')).toBe(0);
     expect(socket.listenerCount('error')).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('waits for pending message acknowledgements before closing a room socket', async () => {
+    vi.useFakeTimers();
+    const socket = createEventSocket();
+    socket.disconnect = vi.fn(() => { socket.connected = false; });
+    socket.removeAllListeners = vi.fn();
+    const service = { sendOn: vi.fn() };
+    const client = createSocketClient(service);
+
+    const send = client.sendChatMessageAndWait(
+      { room: 'room-1', type: 'text', content: 'last message' },
+      socket,
+      { timeoutMs: 1000 },
+    );
+    const sentPayload = service.sendOn.mock.calls[0][2];
+    const close = client.closeRoomWhenIdle('room-1', socket);
+
+    await vi.advanceTimersByTimeAsync(25);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    expect(service.sendOn).toHaveBeenCalledTimes(2);
+
+    socket.emitToClient('messageAck', {
+      clientMessageId: sentPayload.clientMessageId,
+      messageId: 'message-1',
+    });
+    await send;
+    await vi.advanceTimersByTimeAsync(25);
+    await close;
+
+    expect(service.sendOn).toHaveBeenLastCalledWith(socket, 'leaveRoom', 'room-1');
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
 
@@ -250,7 +292,7 @@ describe('socketClient', () => {
     socket.emitToClient('error', error);
 
     await expect(send).rejects.toBe(error);
-    expect(socket.listenerCount('message')).toBe(0);
+    expect(socket.listenerCount('messageAck')).toBe(0);
     expect(socket.listenerCount('error')).toBe(0);
     vi.useRealTimers();
   });
@@ -269,7 +311,7 @@ describe('socketClient', () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     await expectation;
-    expect(socket.listenerCount('message')).toBe(0);
+    expect(socket.listenerCount('messageAck')).toBe(0);
     expect(socket.listenerCount('error')).toBe(0);
     vi.useRealTimers();
   });

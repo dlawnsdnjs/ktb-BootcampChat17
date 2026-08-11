@@ -3,6 +3,7 @@ package com.ktb.chatapp.service;
 import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,6 +122,25 @@ class SessionServiceUnitTest {
 
         assertThat(result.isValid()).isFalse();
         assertThat(result.getError()).isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
+    @DisplayName("소켓 세션 검증은 activity 갱신 간격 전에는 저장하지 않는다")
+    void validateSession_RespectsMinimumActivityUpdateInterval() {
+        Session recentSession = Session.builder()
+                .userId(USER_ID)
+                .sessionId(SESSION_ID)
+                .createdAt(Instant.now().minusSeconds(5).toEpochMilli())
+                .lastActivity(Instant.now().minusSeconds(5).toEpochMilli())
+                .expiresAt(Instant.now().plusSeconds(SessionService.SESSION_TTL_SEC))
+                .build();
+        when(sessionStore.findByUserId(USER_ID)).thenReturn(Optional.of(recentSession));
+
+        SessionValidationResult result = sessionService.validateSession(
+                USER_ID, SESSION_ID, Duration.ofSeconds(30));
+
+        assertThat(result.isValid()).isTrue();
+        verify(sessionStore, never()).save(any(Session.class));
     }
 
     @Test

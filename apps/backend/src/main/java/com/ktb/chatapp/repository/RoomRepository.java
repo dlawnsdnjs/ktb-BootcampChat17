@@ -15,7 +15,7 @@ import java.util.Optional;
 import java.util.List;
 
 @Repository
-public interface RoomRepository extends MongoRepository<Room, String> {
+public interface RoomRepository extends MongoRepository<Room, String>, RoomRepositoryCustom {
 
     @Cacheable(cacheNames = ChatReadCacheNames.ROOM_LIST, sync = true)
     List<Room> findAllByOrderByCreatedAtDesc();
@@ -38,19 +38,9 @@ public interface RoomRepository extends MongoRepository<Room, String> {
     @Query(value = "{}", fields = "{ '_id': 1 }")
     Optional<Room> findOneForHealthCheck();
 
-    @Query("{'_id': ?0}")
-    @Update("{'$addToSet': {'participantIds': ?1}}")
-    @Caching(evict = {
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#roomId"),
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_LIST, allEntries = true)
-    })
-    void addParticipant(String roomId, String userId);
+    @Override
+    Optional<Room> addParticipantAndReturn(String roomId, String userId);
 
-    @Query("{'_id': ?0}")
-    @Update("{'$pull': {'participantIds': ?1}}")
-    @Caching(evict = {
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#roomId"),
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_LIST, allEntries = true)
-    })
+    @Override
     void removeParticipant(String roomId, String userId);
 }

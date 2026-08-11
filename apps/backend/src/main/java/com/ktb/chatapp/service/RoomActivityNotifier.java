@@ -23,7 +23,7 @@ public class RoomActivityNotifier {
         }
 
         try {
-            int recentMessageCount = recentMessageCounter.countRecentMessages(roomId);
+            int recentMessageCount = recentMessageCounter.incrementAndGet(roomId);
             eventPublisher.publishEvent(new RoomActivityEvent(this, roomId, recentMessageCount));
         } catch (Exception e) {
             log.error("roomActivity 이벤트 발행 실패: roomId={}", roomId, e);

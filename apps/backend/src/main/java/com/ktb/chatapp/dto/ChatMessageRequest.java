@@ -17,6 +17,7 @@ public class ChatMessageRequest {
     private String content;
     private String msg;
     private Map<String, Object> fileData;
+    private String clientMessageId;
 
     /**
      * Content 필드가 비어있으면 msg 필드를 반환하는 정규화된 content를 제공

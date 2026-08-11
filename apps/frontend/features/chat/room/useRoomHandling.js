@@ -451,8 +451,12 @@ export const useRoomHandling = ({
       // 언마운트 경로는 attachSocket 을 쓰지 않는다. 사라지는 컴포넌트에
        // 소켓 교체를 통지할 구독자가 없다.
       if (socketRef.current) {
-        socketRef.current.disconnect();
+        const closingSocket = socketRef.current;
         socketRef.current = null;
+        socketClient.closeRoomWhenIdle(roomId, closingSocket).catch(() => {
+          closingSocket.disconnect();
+          closingSocket.removeAllListeners();
+        });
       }
     };
   }, []);

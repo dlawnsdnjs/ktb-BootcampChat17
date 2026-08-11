@@ -4,6 +4,7 @@ import com.ktb.chatapp.annotation.RateLimit;
 import com.ktb.chatapp.dto.*;
 import com.ktb.chatapp.model.Room;
 import com.ktb.chatapp.model.User;
+import com.ktb.chatapp.monitoring.ChatPerformanceMetrics;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.service.RecentMessageCounter;
 import com.ktb.chatapp.service.RoomService;
@@ -41,6 +42,7 @@ public class RoomController {
     private final UserRepository userRepository;
     private final RecentMessageCounter recentMessageCounter;
     private final RoomService roomService;
+    private final ChatPerformanceMetrics performanceMetrics;
 
     @Value("${spring.profiles.active:production}")
     private String activeProfile;
@@ -97,15 +99,17 @@ public class RoomController {
     @GetMapping
     @RateLimit
     public ResponseEntity<?> getAllRooms(Principal principal) {
-
+        var sample = performanceMetrics.startRoomHttp();
         try {
-            RoomsResponse response = roomService.getAllRooms(principal.getName());
+            RoomsResponse roomsResponse = roomService.getAllRooms(principal.getName());
 
             // 캐시 설정
-            return ResponseEntity.ok()
+            ResponseEntity<?> response = ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(Duration.ofSeconds(10)))
                 .header("Last-Modified", java.time.Instant.now().toString())
-                .body(response);
+                .body(roomsResponse);
+            performanceMetrics.stopRoomHttp(sample, "list", response.getStatusCode().value());
+            return response;
 
         } catch (Exception e) {
             log.error("방 목록 조회 에러", e);
@@ -125,7 +129,9 @@ public class RoomController {
                     .build();
             }
 
-            return ResponseEntity.status(500).body(errorResponse);
+            ResponseEntity<?> response = ResponseEntity.status(500).body(errorResponse);
+            performanceMetrics.stopRoomHttp(sample, "list", response.getStatusCode().value());
+            return response;
         }
     }
 
@@ -233,36 +239,48 @@ public class RoomController {
             @Parameter(description = "채팅방 ID", example = "60d5ec49f1b2c8b9e8c4f2a1") @PathVariable String roomId,
             @RequestBody JoinRoomRequest joinRoomRequest,
             Principal principal) {
+        var sample = performanceMetrics.startRoomHttp();
         try {
-            Room joinedRoom = roomService.joinRoom(roomId, joinRoomRequest.getPassword(), principal.getName());
+            RoomResponse roomResponse = performanceMetrics.recordRoomPhase(
+                    "join_service",
+                    () -> roomService.joinRoom(
+                            roomId, joinRoomRequest.getPassword(), principal.getName()));
 
-            if (joinedRoom == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            if (roomResponse == null) {
+                ResponseEntity<?> response = ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(StandardResponse.error("채팅방을 찾을 수 없습니다."));
+                performanceMetrics.stopRoomHttp(sample, "join", response.getStatusCode().value());
+                return response;
             }
 
-            RoomResponse roomResponse = mapToRoomResponse(joinedRoom, principal.getName());
-            
-            return ResponseEntity.ok(
+            ResponseEntity<?> response = ResponseEntity.ok(
                 Map.of(
                     "success", true,
                     "data", roomResponse
                 )
             );
+            performanceMetrics.stopRoomHttp(sample, "join", response.getStatusCode().value());
+            return response;
 
         } catch (RuntimeException e) {
             if (e.getMessage().contains("비밀번호")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(StandardResponse.error("비밀번호가 일치하지 않습니다."));
+                performanceMetrics.stopRoomHttp(sample, "join", response.getStatusCode().value());
+                return response;
             }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            ResponseEntity<?> response = ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(StandardResponse.error(e.getMessage()));
+            performanceMetrics.stopRoomHttp(sample, "join", response.getStatusCode().value());
+            return response;
 
         } catch (Exception e) {
             log.error("채팅방 참여 에러", e);
-            return ResponseEntity.status(500).body(
+            ResponseEntity<?> response = ResponseEntity.status(500).body(
                 StandardResponse.error("채팅방 참여에 실패했습니다.")
             );
+            performanceMetrics.stopRoomHttp(sample, "join", response.getStatusCode().value());
+            return response;
         }
     }
 

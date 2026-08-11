@@ -4,6 +4,7 @@ import com.corundumstudio.socketio.AuthTokenListener;
 import com.corundumstudio.socketio.AuthTokenResult;
 import com.corundumstudio.socketio.SocketIOClient;
 import com.ktb.chatapp.model.User;
+import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.service.JwtService;
 import com.ktb.chatapp.service.SessionService;
@@ -69,7 +70,7 @@ public class AuthTokenListenerImpl implements AuthTokenListener {
             }
 
             log.info("Socket.IO connection authorized for user: {} ({})", user.getName(), userId);
-            
+            client.set("userResponse", UserResponse.from(user));
             var socketUser = new SocketUser(user.getId(), user.getName(), sessionId, client.getSessionId().toString());
             socketIOChatHandlerProvider.getObject().onConnect(client, socketUser);
             return AuthTokenResult.AuthTokenResultSuccess;

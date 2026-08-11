@@ -9,18 +9,19 @@ import com.ktb.chatapp.dto.MessageContent;
 import com.ktb.chatapp.dto.MessageResponse;
 import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.model.*;
+import com.ktb.chatapp.monitoring.ChatPerformanceMetrics;
 import com.ktb.chatapp.repository.FileRepository;
 import com.ktb.chatapp.repository.MessageRepository;
-import com.ktb.chatapp.repository.RoomRepository;
-import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.util.BannedWordChecker;
 import com.ktb.chatapp.websocket.socketio.ai.AiService;
 import com.ktb.chatapp.service.RoomActivityNotifier;
-import com.ktb.chatapp.service.SessionService;
 import com.ktb.chatapp.service.SessionValidationResult;
 import com.ktb.chatapp.service.RateLimitService;
 import com.ktb.chatapp.service.RateLimitCheckResult;
 import com.ktb.chatapp.websocket.socketio.SocketUser;
+import com.ktb.chatapp.websocket.socketio.SocketSessionValidator;
+import com.ktb.chatapp.websocket.socketio.UserRooms;
+import com.ktb.chatapp.websocket.socketio.MessageDeduplicator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -41,19 +42,21 @@ import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.*;
 public class ChatMessageHandler {
     private final SocketIOServer socketIOServer;
     private final MessageRepository messageRepository;
-    private final RoomRepository roomRepository;
-    private final UserRepository userRepository;
     private final FileRepository fileRepository;
     private final AiService aiService;
-    private final SessionService sessionService;
+    private final SocketSessionValidator sessionValidator;
     private final RoomActivityNotifier roomActivityNotifier;
     private final BannedWordChecker bannedWordChecker;
     private final RateLimitService rateLimitService;
     private final MeterRegistry meterRegistry;
+    private final ChatPerformanceMetrics performanceMetrics;
+    private final UserRooms userRooms;
+    private final MessageDeduplicator messageDeduplicator;
     
     @OnEvent(CHAT_MESSAGE)
     public void handleChatMessage(SocketIOClient client, ChatMessageRequest data) {
         Timer.Sample timerSample = Timer.start(meterRegistry);
+        MessageDeduplicator.Claim deduplicationClaim = null;
 
         if (data == null) {
             recordError("null_data");
@@ -77,9 +80,26 @@ public class ChatMessageHandler {
             return;
         }
 
-        SessionValidationResult validation =
-                sessionService.validateSession(socketUser.id(), socketUser.authSessionId());
+        String roomId = data.getRoom();
+        deduplicationClaim = messageDeduplicator.claim(
+                socketUser.id(), data.getClientMessageId());
+        if (!deduplicationClaim.accepted()) {
+            if (deduplicationClaim.messageId() != null) {
+                client.sendEvent(MESSAGE_ACK, Map.of(
+                        "clientMessageId", data.getClientMessageId(),
+                        "messageId", deduplicationClaim.messageId(),
+                        "roomId", roomId));
+            }
+            timerSample.stop(createTimer("duplicate", data.getMessageType()));
+            return;
+        }
+
+        SessionValidationResult validation = performanceMetrics.recordMessagePhase(
+                "session_validation",
+                () -> sessionValidator.validate(socketUser.id(), socketUser.authSessionId()));
         if (!validation.isValid()) {
+            messageDeduplicator.reject(deduplicationClaim);
+            deduplicationClaim = null;
             recordError("session_expired");
             client.sendEvent(ERROR, Map.of(
                     "code", "SESSION_EXPIRED",
@@ -90,9 +110,13 @@ public class ChatMessageHandler {
         }
 
         // Rate limit check
-        RateLimitCheckResult rateLimitResult =
-                rateLimitService.checkRateLimit(socketUser.id(), 10000, Duration.ofMinutes(1));
+        RateLimitCheckResult rateLimitResult = performanceMetrics.recordMessagePhase(
+                "rate_limit",
+                () -> rateLimitService.checkRateLimit(
+                        socketUser.id(), 10000, Duration.ofMinutes(1)));
         if (!rateLimitResult.allowed()) {
+            messageDeduplicator.reject(deduplicationClaim);
+            deduplicationClaim = null;
             recordError("rate_limit_exceeded");
             Counter.builder("socketio.messages.rate_limit")
                     .description("Socket.IO rate limit exceeded count")
@@ -110,8 +134,10 @@ public class ChatMessageHandler {
         }
         
         try {
-            User sender = userRepository.findById(socketUser.id()).orElse(null);
+            UserResponse sender = client.get("userResponse");
             if (sender == null) {
+                messageDeduplicator.reject(deduplicationClaim);
+                deduplicationClaim = null;
                 recordError("user_not_found");
                 client.sendEvent(ERROR, Map.of(
                     "code", "MESSAGE_ERROR",
@@ -121,9 +147,11 @@ public class ChatMessageHandler {
                 return;
             }
 
-            String roomId = data.getRoom();
-            Room room = roomRepository.findById(roomId).orElse(null);
-            if (room == null || !room.getParticipantIds().contains(socketUser.id())) {
+            boolean hasRoomAccess = performanceMetrics.recordMessagePhase(
+                    "room_membership", () -> userRooms.isInRoom(socketUser.id(), roomId));
+            if (!hasRoomAccess) {
+                messageDeduplicator.reject(deduplicationClaim);
+                deduplicationClaim = null;
                 recordError("room_access_denied");
                 client.sendEvent(ERROR, Map.of(
                     "code", "MESSAGE_ERROR",
@@ -138,7 +166,12 @@ public class ChatMessageHandler {
             log.debug("Message received - type: {}, room: {}, userId: {}, hasFileData: {}",
                 data.getMessageType(), roomId, socketUser.id(), data.hasFileData());
 
-            if (bannedWordChecker.containsBannedWord(messageContent.getTrimmedContent())) {
+            boolean containsBannedWord = performanceMetrics.recordMessagePhase(
+                    "banned_word",
+                    () -> bannedWordChecker.containsBannedWord(messageContent.getTrimmedContent()));
+            if (containsBannedWord) {
+                messageDeduplicator.reject(deduplicationClaim);
+                deduplicationClaim = null;
                 recordError("banned_word");
                 client.sendEvent(ERROR, Map.of(
                         "code", "MESSAGE_REJECTED",
@@ -156,24 +189,37 @@ public class ChatMessageHandler {
             };
 
             if (message == null) {
+                messageDeduplicator.reject(deduplicationClaim);
+                deduplicationClaim = null;
                 log.warn("Empty message - ignoring. room: {}, userId: {}, messageType: {}", roomId, socketUser.id(), messageType);
                 timerSample.stop(createTimer("ignored", messageType));
                 return;
             }
 
-            Message savedMessage = messageRepository.save(message);
+            Message savedMessage = performanceMetrics.recordMessagePhase(
+                    "message_save", () -> messageRepository.save(message));
+            messageDeduplicator.complete(deduplicationClaim, savedMessage.getId());
+            deduplicationClaim = null;
             MessageResponse messageResponse = createMessageResponse(savedMessage, sender);
 
-            socketIOServer.getRoomOperations(roomId)
-                    .sendEvent(MESSAGE, messageResponse);
-            client.sendEvent(MESSAGE, messageResponse);
+            performanceMetrics.recordMessagePhase("broadcast", () -> {
+                socketIOServer.getRoomOperations(roomId)
+                        .sendEvent(MESSAGE, messageResponse);
+            });
 
-            roomActivityNotifier.notifyMessageStored(roomId);
+            if (data.getClientMessageId() != null && !data.getClientMessageId().isBlank()) {
+                client.sendEvent(MESSAGE_ACK, Map.of(
+                        "clientMessageId", data.getClientMessageId(),
+                        "messageId", savedMessage.getId(),
+                        "roomId", roomId,
+                        "timestamp", savedMessage.toTimestampMillis()));
+            }
+
+            performanceMetrics.recordMessagePhase(
+                    "room_activity", () -> roomActivityNotifier.notifyMessageStored(roomId));
 
             // AI 멘션 처리
             aiService.handleAIMentions(roomId, socketUser.id(), messageContent);
-
-            sessionService.updateLastActivity(socketUser.id());
 
             // Record success metrics
             recordMessageSuccess(messageType);
@@ -183,6 +229,9 @@ public class ChatMessageHandler {
                 savedMessage.getId(), savedMessage.getType(), roomId);
 
         } catch (Exception e) {
+            if (deduplicationClaim != null) {
+                messageDeduplicator.release(deduplicationClaim);
+            }
             recordError("exception");
             log.error("Message handling error", e);
             client.sendEvent(ERROR, Map.of(
@@ -240,7 +289,7 @@ public class ChatMessageHandler {
         return message;
     }
 
-    private MessageResponse createMessageResponse(Message message, User sender) {
+    private MessageResponse createMessageResponse(Message message, UserResponse sender) {
         var messageResponse = new MessageResponse();
         messageResponse.setId(message.getId());
         messageResponse.setRoomId(message.getRoomId());
@@ -248,7 +297,7 @@ public class ChatMessageHandler {
         messageResponse.setType(message.getType());
         messageResponse.setTimestamp(message.toTimestampMillis());
         messageResponse.setReactions(message.getReactions() != null ? message.getReactions() : Collections.emptyMap());
-        messageResponse.setSender(UserResponse.from(sender));
+        messageResponse.setSender(sender);
         messageResponse.setMetadata(message.getMetadata());
 
         if (message.getFileId() != null) {

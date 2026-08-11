@@ -115,6 +115,12 @@ public class RedisChatDataStore implements ChatDataStore {
     }
 
     @Override
+    public boolean setIfAbsent(String key, Object value) {
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
+                storageKey(key), serialize(key, value), leaseTtl));
+    }
+
+    @Override
     public void delete(String key) {
         redisTemplate.delete(storageKey(key));
     }

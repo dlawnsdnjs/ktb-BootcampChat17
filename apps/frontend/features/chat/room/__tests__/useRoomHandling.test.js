@@ -39,6 +39,7 @@ vi.mock('@/lib/socket/socketClient', () => ({
     joinRoomAndWait: vi.fn(),
     fetchPreviousMessagesAndWait: vi.fn(),
     subscribeRoomEvents: vi.fn(),
+    closeRoomWhenIdle: vi.fn(() => Promise.resolve()),
   },
 }));
 

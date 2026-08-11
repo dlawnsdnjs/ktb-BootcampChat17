@@ -3,6 +3,7 @@ package com.ktb.chatapp.service;
 import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,11 @@ public class SessionService {
     }
 
     public SessionValidationResult validateSession(String userId, String sessionId) {
+        return validateSession(userId, sessionId, Duration.ZERO);
+    }
+
+    public SessionValidationResult validateSession(
+            String userId, String sessionId, Duration minimumActivityUpdateInterval) {
         try {
             if (userId == null || sessionId == null) {
                 log.warn("validateSession called with null parameters: userId={}, sessionId={}", userId, sessionId);
@@ -94,10 +100,12 @@ public class SessionService {
                 return SessionValidationResult.invalid("SESSION_EXPIRED", "세션이 만료되었습니다.");
             }
 
-            // Update last activity
-            session.setLastActivity(now);
-            session.setExpiresAt(Instant.now().plusSeconds(SESSION_TTL_SEC));
-            session = sessionStore.save(session);
+            long updateIntervalMillis = Math.max(0L, minimumActivityUpdateInterval.toMillis());
+            if (now - session.getLastActivity() >= updateIntervalMillis) {
+                session.setLastActivity(now);
+                session.setExpiresAt(Instant.now().plusSeconds(SESSION_TTL_SEC));
+                session = sessionStore.save(session);
+            }
 
             SessionData sessionData = toSessionData(session);
             return SessionValidationResult.valid(sessionData);

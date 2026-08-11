@@ -54,49 +54,47 @@ public class RoomJoinHandler {
                 return;
             }
             
-            if (userRepository.findById(userId).isEmpty()) {
-                client.sendEvent(JOIN_ROOM_ERROR, Map.of("message", "User not found"));
-                return;
-            }
-            
             Optional<Room> roomOpt = roomRepository.findById(roomId);
             if (roomOpt.isEmpty()) {
                 client.sendEvent(JOIN_ROOM_ERROR, Map.of("message", "채팅방을 찾을 수 없습니다."));
                 return;
             }
 
-            Set<String> participantIds = Optional.ofNullable(roomOpt.get().getParticipantIds())
+            Room room = roomOpt.get();
+            Set<String> participantIds = Optional.ofNullable(room.getParticipantIds())
                     .map(LinkedHashSet::new)
                     .orElseGet(LinkedHashSet::new);
-            
-            // 이미 해당 방에 참여 중인지 확인
-            if (userRooms.isInRoom(userId, roomId)) {
-                log.debug("User {} already in room {}", userId, roomId);
-                client.joinRoom(roomId);
-                client.sendEvent(JOIN_ROOM_SUCCESS, Map.of("roomId", roomId));
-                return;
-            }
+            boolean firstSocketPresence = !userRooms.isInRoom(userId, roomId);
 
-            if (participantIds.add(userId)) {
-                roomRepository.addParticipant(roomId, userId);
+            if (!participantIds.contains(userId)) {
+                room = roomRepository.addParticipantAndReturn(roomId, userId).orElse(null);
+                if (room == null) {
+                    client.sendEvent(JOIN_ROOM_ERROR, Map.of("message", "채팅방을 찾을 수 없습니다."));
+                    return;
+                }
+                participantIds = Optional.ofNullable(room.getParticipantIds())
+                        .map(LinkedHashSet::new)
+                        .orElseGet(LinkedHashSet::new);
             }
 
             // Join socket room and add to user's room set
             client.joinRoom(roomId);
             userRooms.add(userId, roomId);
 
-            Message joinMessage = Message.builder()
-                .roomId(roomId)
-                .content(userName + "님이 입장하였습니다.")
-                .type(MessageType.system)
-                .timestamp(LocalDateTime.now())
-                .mentions(new ArrayList<>())
-                .reactions(new HashMap<>())
-                .readers(new ArrayList<>())
-                .metadata(new HashMap<>())
-                .build();
-
-            joinMessage = messageRepository.save(joinMessage);
+            Message joinMessage = null;
+            if (firstSocketPresence) {
+                joinMessage = Message.builder()
+                    .roomId(roomId)
+                    .content(userName + "님이 입장하였습니다.")
+                    .type(MessageType.system)
+                    .timestamp(LocalDateTime.now())
+                    .mentions(new ArrayList<>())
+                    .reactions(new HashMap<>())
+                    .readers(new ArrayList<>())
+                    .metadata(new HashMap<>())
+                    .build();
+                joinMessage = messageRepository.save(joinMessage);
+            }
 
             // 초기 메시지 로드
             FetchMessagesRequest req = new FetchMessagesRequest(roomId, 30, null);
@@ -118,9 +116,11 @@ public class RoomJoinHandler {
 
             client.sendEvent(JOIN_ROOM_SUCCESS, response);
 
-            // 입장 메시지 브로드캐스트
-            socketIOServer.getRoomOperations(roomId)
-                .sendEvent(MESSAGE, messageResponseMapper.mapToMessageResponse(joinMessage, null));
+            // 동일 사용자의 중복 소켓 입장에서는 시스템 메시지를 중복 생성하지 않는다.
+            if (joinMessage != null) {
+                socketIOServer.getRoomOperations(roomId)
+                    .sendEvent(MESSAGE, messageResponseMapper.mapToMessageResponse(joinMessage, null));
+            }
 
             // 참가자 목록 업데이트 브로드캐스트
             socketIOServer.getRoomOperations(roomId)

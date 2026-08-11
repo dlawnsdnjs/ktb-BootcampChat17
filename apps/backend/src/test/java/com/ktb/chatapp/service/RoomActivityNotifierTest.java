@@ -28,7 +28,7 @@ class RoomActivityNotifierTest {
 
     @Test
     void notifyMessageStored_firstMessageOfRoom_publishesRecentMessageCount() {
-        when(recentMessageCounter.countRecentMessages("room-1")).thenReturn(7);
+        when(recentMessageCounter.incrementAndGet("room-1")).thenReturn(7);
 
         notifier().notifyMessageStored("room-1");
 
@@ -41,7 +41,7 @@ class RoomActivityNotifierTest {
 
     @Test
     void notifyMessageStored_everyMessage_publishes() {
-        when(recentMessageCounter.countRecentMessages("room-1")).thenReturn(1);
+        when(recentMessageCounter.incrementAndGet("room-1")).thenReturn(1);
         RoomActivityNotifier notifier = notifier();
 
         notifier.notifyMessageStored("room-1");
@@ -49,7 +49,7 @@ class RoomActivityNotifierTest {
         notifier.notifyMessageStored("room-1");
 
         verify(eventPublisher, times(3)).publishEvent(any(RoomActivityEvent.class));
-        verify(recentMessageCounter, times(3)).countRecentMessages("room-1");
+        verify(recentMessageCounter, times(3)).incrementAndGet("room-1");
     }
 
     @Test
@@ -62,7 +62,7 @@ class RoomActivityNotifierTest {
 
     @Test
     void notifyMessageStored_counterFails_swallowsException() {
-        when(recentMessageCounter.countRecentMessages("room-1"))
+        when(recentMessageCounter.incrementAndGet("room-1"))
                 .thenThrow(new RuntimeException("mongo down"));
 
         notifier().notifyMessageStored("room-1");

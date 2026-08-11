@@ -111,9 +111,10 @@ class RoomJoinHandlerTest {
 
         handler.handleJoinRoom(client, "room-1");
 
-        verify(roomRepository, never()).addParticipant(any(), any());
+        verify(roomRepository, never()).addParticipantAndReturn(any(), any());
         verify(roomRepository, times(1)).findById("room-1");
         verify(userRepository, times(1)).findAllById(any());
+        verify(userRepository, never()).findById(any());
     }
 
     @Test
@@ -124,7 +125,7 @@ class RoomJoinHandlerTest {
 
         handler.handleJoinRoom(client, "room-1");
 
-        verify(roomRepository, times(1)).addParticipant("room-1", "user-1");
+        verify(roomRepository, times(1)).addParticipantAndReturn("room-1", "user-1");
         verify(roomRepository, times(1)).findById("room-1");
         verify(userRepository, times(1)).findAllById(any());
 
@@ -149,7 +150,7 @@ class RoomJoinHandlerTest {
 
         handler.handleJoinRoom(client, "room-1");
 
-        verify(roomRepository).addParticipant("room-1", "user-1");
+        verify(roomRepository).addParticipantAndReturn("room-1", "user-1");
         JoinRoomSuccessResponse response = captureSuccessResponse();
         assertEquals(List.of("user-1"), response.getParticipants().stream()
                 .map(UserResponse::getId)
@@ -159,7 +160,6 @@ class RoomJoinHandlerTest {
     @Test
     void handleJoinRoom_rejectsMissingRoomWithExistingError() {
         when(client.get("user")).thenReturn(socketUser);
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(joiningUser));
         when(roomRepository.findById("room-1")).thenReturn(Optional.empty());
 
         handler.handleJoinRoom(client, "room-1");
@@ -169,8 +169,9 @@ class RoomJoinHandlerTest {
         verify(client).sendEvent(eq(JOIN_ROOM_ERROR), errorCaptor.capture());
         assertEquals("채팅방을 찾을 수 없습니다.", errorCaptor.getValue().get("message"));
         verify(roomRepository, times(1)).findById("room-1");
-        verify(roomRepository, never()).addParticipant(any(), any());
+        verify(roomRepository, never()).addParticipantAndReturn(any(), any());
         verify(userRepository, never()).findAllById(any());
+        verify(userRepository, never()).findById(any());
     }
 
     @Test
@@ -199,11 +200,41 @@ class RoomJoinHandlerTest {
         assertEquals(response.getParticipants(), participantsCaptor.getValue());
     }
 
+    @Test
+    void handleJoinRoom_reconnectLoadsStateWithoutDuplicateJoinMessage() {
+        User otherUser = user("user-2", "other");
+        Room room = room(Set.of("user-1", "user-2"));
+        when(client.get("user")).thenReturn(socketUser);
+        when(roomRepository.findById("room-1")).thenReturn(Optional.of(room));
+        when(userRooms.isInRoom("user-1", "room-1")).thenReturn(true);
+        when(messageLoader.loadMessages(any(FetchMessagesRequest.class), eq("user-1")))
+                .thenReturn(loadResponse);
+        when(userRepository.findAllById(any())).thenReturn(List.of(joiningUser, otherUser));
+        when(socketIOServer.getRoomOperations("room-1")).thenReturn(roomOperations);
+
+        handler.handleJoinRoom(client, "room-1");
+
+        verify(client).joinRoom("room-1");
+        verify(userRooms).add("user-1", "room-1");
+        verify(messageRepository, never()).save(any(Message.class));
+        verify(roomRepository, never()).addParticipantAndReturn(any(), any());
+        verify(userRepository, never()).findById(any());
+        assertEquals(2, captureSuccessResponse().getParticipants().size());
+    }
+
     private void stubSuccessfulJoin(Room room, List<User> participantUsers) {
         when(client.get("user")).thenReturn(socketUser);
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(joiningUser));
         when(roomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(userRooms.isInRoom("user-1", "room-1")).thenReturn(false);
+        if (room.getParticipantIds() == null || !room.getParticipantIds().contains("user-1")) {
+            Set<String> updatedIds = new HashSet<>();
+            if (room.getParticipantIds() != null) {
+                updatedIds.addAll(room.getParticipantIds());
+            }
+            updatedIds.add("user-1");
+            when(roomRepository.addParticipantAndReturn("room-1", "user-1"))
+                    .thenReturn(Optional.of(room(updatedIds)));
+        }
         when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
             Message message = invocation.getArgument(0);
             message.setId("message-1");

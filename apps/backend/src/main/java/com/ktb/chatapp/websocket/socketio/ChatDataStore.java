@@ -26,6 +26,9 @@ public interface ChatDataStore {
      * @param value the value to store
      */
     void set(String key, Object value);
+
+    /** Atomically store a value only when the key does not already exist. */
+    boolean setIfAbsent(String key, Object value);
     
     /**
      * Delete a value by key

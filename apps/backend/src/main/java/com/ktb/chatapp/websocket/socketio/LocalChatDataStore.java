@@ -35,6 +35,11 @@ public class LocalChatDataStore implements ChatDataStore {
     public void set(String key, Object value) {
         storage.put(key, value);
     }
+
+    @Override
+    public boolean setIfAbsent(String key, Object value) {
+        return storage.putIfAbsent(key, value) == null;
+    }
     
     @Override
     public void delete(String key) {

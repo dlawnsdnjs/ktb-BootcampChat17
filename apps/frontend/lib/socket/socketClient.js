@@ -22,6 +22,7 @@ const waitForSocketEvent = ({
   errorEvents,
   timeoutMs,
   timeoutMessage,
+  successPredicate = () => true,
   send,
 }) => {
   ensureConnectedSocket(socket);
@@ -44,10 +45,14 @@ const waitForSocketEvent = ({
       callback(value);
     };
 
-    const handleSuccess = (data) => settle(resolve, data);
+    const handleSuccess = (data) => {
+      if (successPredicate(data)) {
+        settle(resolve, data);
+      }
+    };
     const handleError = (error) => settle(reject, error);
 
-    socket.once(successEvent, handleSuccess);
+    socket.on(successEvent, handleSuccess);
     for (const event of errorEvents) {
       socket.once(event, handleError);
     }
@@ -89,6 +94,34 @@ const managerEventMap = {
   reconnect_failed: 'onReconnectFailed',
 };
 
+const createClientMessageId = () => globalThis.crypto?.randomUUID?.()
+  || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const pendingMessageAcks = new WeakMap();
+
+const trackPendingMessageAck = (socket, promise) => {
+  let pending = pendingMessageAcks.get(socket);
+  if (!pending) {
+    pending = new Set();
+    pendingMessageAcks.set(socket, pending);
+  }
+
+  pending.add(promise);
+  const remove = () => {
+    pending.delete(promise);
+    if (pending.size === 0) {
+      pendingMessageAcks.delete(socket);
+    }
+  };
+  promise.then(remove, remove);
+  return promise;
+};
+
+const waitForPendingMessageAcks = (socket) => {
+  const pending = pendingMessageAcks.get(socket);
+  return pending?.size ? Promise.allSettled([...pending]) : Promise.resolve([]);
+};
+
 const subscribeMappedEvents = (emitter, handlers, eventMap) => {
   if (!emitter) {
     return () => {};
@@ -116,15 +149,38 @@ export const createSocketClient = (service = socketService) => ({
   canSend: () => service.isConnected(),
   send: (event, data) => service.send(event, data),
   sendChatMessage: (payload, socket) => sendDomainEvent(service, socket, 'chatMessage', payload),
-  sendChatMessageAndWait: (payload, socket, { timeoutMs = 8000 } = {}) =>
-    waitForSocketEvent({
+  sendChatMessageAndWait: (payload, socket, { timeoutMs = 8000 } = {}) => {
+    const clientMessageId = payload.clientMessageId || createClientMessageId();
+    const correlatedPayload = { ...payload, clientMessageId };
+    return trackPendingMessageAck(socket, waitForSocketEvent({
       socket,
-      successEvent: 'message',
+      successEvent: 'messageAck',
       errorEvents: ['error'],
       timeoutMs,
       timeoutMessage: '메시지 전송이 지연되고 있습니다. 다시 시도해주세요.',
-      send: () => sendDomainEvent(service, socket, 'chatMessage', payload),
-    }),
+      successPredicate: ack => ack?.clientMessageId === clientMessageId,
+      // Delivery is at-least-once; the server atomically deduplicates clientMessageId.
+      // Two writes also survive a hard navigation dropping the browser's final frame.
+      send: () => {
+        sendDomainEvent(service, socket, 'chatMessage', correlatedPayload);
+        sendDomainEvent(service, socket, 'chatMessage', correlatedPayload);
+      },
+    }));
+  },
+  closeRoomWhenIdle: async (roomId, socket, { disconnectDelayMs = 25 } = {}) => {
+    if (!socket) return;
+
+    await waitForPendingMessageAcks(socket);
+    if (socket.connected) {
+      try {
+        sendDomainEvent(service, socket, 'leaveRoom', roomId);
+      } catch (_) {}
+    }
+
+    await new Promise(resolve => setTimeout(resolve, disconnectDelayMs));
+    socket.disconnect();
+    socket.removeAllListeners?.();
+  },
   fetchPreviousMessages: (payload, socket) => sendDomainEvent(service, socket, 'fetchPreviousMessages', payload),
   fetchPreviousMessagesAndWait: (payload, socket, { timeoutMs = 10000 } = {}) =>
     waitForSocketEvent({
