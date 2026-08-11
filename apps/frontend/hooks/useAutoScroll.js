@@ -60,9 +60,9 @@ export const useAutoScroll = (
     // 스크롤 완료 후 플래그 리셋
     setTimeout(() => {
       isAutoScrollingRef.current = false;
-      isNearBottomRef.current = true;
+      isNearBottomRef.current = checkIsNearBottom();
     }, 300);
-  }, []);
+  }, [checkIsNearBottom]);
 
   /**
    * 스크롤 이벤트 핸들러 - 사용자가 스크롤할 때 위치 추적
@@ -113,8 +113,9 @@ export const useAutoScroll = (
       container.scrollTop = previousScrollTopRef.current + heightDifference;
     }
 
+    isNearBottomRef.current = checkIsNearBottom();
     isRestoringRef.current = false;
-  }, [messages, isLoadingMessages]);
+  }, [messages, isLoadingMessages, checkIsNearBottom]);
 
   /**
    * 메시지 추가 시 자동 스크롤 로직
