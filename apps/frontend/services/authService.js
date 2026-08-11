@@ -101,6 +101,23 @@ class AuthService {
   }
 
   async register(userData) {
+    try {
+      const response = await api.post('/api/auth/register', userData);
+
+      if (response.data?.success && response.data?.token && response.data?.user) {
+        return {
+          id: response.data.user._id,
+          name: response.data.user.name,
+          email: response.data.user.email,
+          profileImage: response.data.user.profileImage,
+          token: response.data.token,
+          sessionId: response.data.sessionId
+        };
+      }
+
+      if (response.data?.success) {
+        return response.data;
+      }
     let response;
 
     try {

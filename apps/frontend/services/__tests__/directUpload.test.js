@@ -11,13 +11,13 @@ const image = {
 
 describe('presigned direct upload', () => {
   afterEach(() => {
-    fileService.directUploadEnabled = false;
+    fileService.usesS3Storage = false;
     fileService.activeUploads.clear();
     vi.restoreAllMocks();
   });
 
   it('uploads a chat file through presign, S3 PUT, and completion', async () => {
-    fileService.directUploadEnabled = true;
+    fileService.usesS3Storage = true;
     vi.spyOn(fileService, 'validateFile').mockResolvedValue({ success: true });
     const post = vi.spyOn(axiosInstance, 'post')
       .mockResolvedValueOnce({
@@ -56,7 +56,7 @@ describe('presigned direct upload', () => {
     expect(result.data.file.url).toContain('/api/files/view/stored.png');
   });
 
-  it('keeps the legacy multipart profile API when the flag is disabled', async () => {
+  it('keeps the legacy multipart profile API in local storage mode', async () => {
     const post = vi.spyOn(axiosInstance, 'post').mockResolvedValue({
       data: { success: true, imageUrl: '/api/files/profiles/stored.png' },
     });
@@ -70,7 +70,7 @@ describe('presigned direct upload', () => {
   });
 
   it('completes a direct profile image upload with the existing response shape', async () => {
-    fileService.directUploadEnabled = true;
+    fileService.usesS3Storage = true;
     const post = vi.spyOn(axiosInstance, 'post')
       .mockResolvedValueOnce({
         data: {

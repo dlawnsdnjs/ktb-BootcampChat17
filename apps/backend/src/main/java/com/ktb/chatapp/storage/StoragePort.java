@@ -21,10 +21,6 @@ public interface StoragePort {
         return Optional.empty();
     }
 
-    default boolean markUploadCompleted(String key) {
-        return false;
-    }
-
     /**
      * 오프로딩 확장 지점. 지원하지 않으면 앱이 바이트를 중계한다.
      *

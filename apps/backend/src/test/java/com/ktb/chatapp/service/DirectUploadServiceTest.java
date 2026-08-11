@@ -30,7 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class DirectUploadServiceTest {
@@ -46,7 +45,6 @@ class DirectUploadServiceTest {
     @BeforeEach
     void setUp() {
         service = new DirectUploadService(storage, sessions, files, users, mongoTemplate);
-        ReflectionTestUtils.setField(service, "directUploadEnabled", true);
         lenient().when(users.findByEmail("user@example.com")).thenReturn(Optional.of(user));
     }
 
@@ -69,18 +67,6 @@ class DirectUploadServiceTest {
     }
 
     @Test
-    void presignIsDisabledByDefaultFlag() {
-        ReflectionTestUtils.setField(service, "directUploadEnabled", false);
-
-        assertThatThrownBy(() -> service.presign("user@example.com",
-                new PresignUploadRequest(UploadPurpose.CHAT_ATTACHMENT, "photo.png", "image/png", 12)))
-                .isInstanceOf(DirectUploadException.class)
-                .extracting(ex -> ((DirectUploadException) ex).getStatus().value())
-                .isEqualTo(409);
-        verify(sessions, never()).save(any());
-    }
-
-    @Test
     void profileRejectsNonImageBeforeCreatingSession() {
         assertThatThrownBy(() -> service.presign("user@example.com",
                 new PresignUploadRequest(UploadPurpose.PROFILE_IMAGE, "doc.pdf", "application/pdf", 12)))
@@ -95,7 +81,6 @@ class DirectUploadServiceTest {
         when(mongoTemplate.findAndModify(any(), any(), any(), any(Class.class))).thenReturn(claimed);
         when(storage.metadata("chat/file.png")).thenReturn(Optional.of(
                 new StoredObjectMetadata(12, "image/png")));
-        when(storage.markUploadCompleted("chat/file.png")).thenReturn(true);
         when(files.save(any(File.class))).thenAnswer(invocation -> {
             File file = invocation.getArgument(0);
             file.setId("file-1");
@@ -161,7 +146,6 @@ class DirectUploadServiceTest {
         when(mongoTemplate.findAndModify(any(), any(), any(), any(Class.class))).thenReturn(claimed);
         when(storage.metadata("profiles/new.png")).thenReturn(Optional.of(
                 new StoredObjectMetadata(12, "image/png")));
-        when(storage.markUploadCompleted("profiles/new.png")).thenReturn(true);
         when(users.save(user)).thenReturn(user);
 
         var response = service.completeProfile("user@example.com", "upload-1");

@@ -135,8 +135,11 @@ export const AuthProviderWithRouter = ({ children, router }) => {
   // 회원가입
   const register = useCallback(async (userData) => {
     const registeredUser = await authService.register(userData);
+    if (registeredUser?.token && registeredUser?.sessionId) {
+      saveUser(registeredUser);
+    }
     return registeredUser;
-  }, []);
+  }, [saveUser]);
 
   // 프로필 업데이트 (API 호출 + 상태 저장)
   const updateProfile = useCallback(async (updates) => {
@@ -328,7 +331,7 @@ export const withAuth = (WrappedComponent) => {
  *
  * 이미 로그인한 사용자는 /chat으로 리다이렉트
  */
-export const withoutAuth = (WrappedComponent) => {
+export const withoutAuth = (WrappedComponent, { redirectAuthenticated = true } = {}) => {
   const WithoutAuthComponent = (props) => {
     const router = useRouter();
     const { isAuthenticated, isLoading } = useAuth();
@@ -356,7 +359,7 @@ export const withoutAuth = (WrappedComponent) => {
     }, [isAuthenticated, isLoading, redirect, router]);
 
     // 로딩 중이거나 이미 로그인된 사용자인 경우 로딩 화면
-    if (isLoading || isAuthenticated) {
+    if (isLoading || shouldRedirect) {
       return (
         <div style={{
           display: 'flex',

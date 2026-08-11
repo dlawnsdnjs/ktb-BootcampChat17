@@ -99,7 +99,6 @@ make verify-java
 | `FILE_UPLOAD_DIR` | ❌ | `./uploads` | `local` 모드의 업로드 경로 |
 | `S3_BUCKET_NAME` | S3 사용 시 ✅ | 없음 | 파일을 저장할 비공개 S3 버킷명 |
 | `AWS_REGION` | S3 사용 시 ✅ | 없음 | S3 버킷 리전 |
-| `S3_DIRECT_UPLOAD_ENABLED` | ❌ | `false` | Presigned PUT/완료 API 활성화. 버킷 CORS와 Lifecycle 적용 후에만 `true`로 설정 |
 | `PORT` | ❌ | `5001` | HTTP API 포트 (`server.port`) |
 | `WS_PORT` | ❌ | `5002` | Socket.IO 서버 포트             |
 | `CORS_ALLOWED_ORIGINS` | ❌ | `*` | REST API CORS 허용 Origin 목록. 쉼표로 구분 |

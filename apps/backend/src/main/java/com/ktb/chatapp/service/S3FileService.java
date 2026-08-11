@@ -10,12 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * S3 배포에서 선택되는 {@link FileService} 구현체.
  *
- * <p>브라우저 직접 업로드 요청은 Presigned URL 워크플로에 위임한다. 기존 multipart API는 공식 E2E와
- * 롤백 경로를 위해 유지하며, 이 경우에만 Backend가 S3로 파일 바이트를 전달한다.
+ * <p>브라우저 직접 업로드 요청은 Presigned URL 워크플로에 위임한다. S3 모드에서 Backend가
+ * 파일 바이트를 받는 multipart 경로는 허용하지 않는다.
  */
 @Service
 @ConditionalOnProperty(name = "file.storage.type", havingValue = "s3")
@@ -34,6 +35,16 @@ public class S3FileService extends AbstractStorageFileService {
     @Autowired(required = false)
     void configureDirectUploadService(DirectUploadService directUploadService) {
         this.directUploadService = directUploadService;
+    }
+
+    @Override
+    public FileUploadResult uploadFile(MultipartFile file, String uploaderId) {
+        throw multipartNotSupported();
+    }
+
+    @Override
+    public String storeFile(MultipartFile file, String subDirectory) {
+        throw multipartNotSupported();
     }
 
     @Override
@@ -57,5 +68,10 @@ public class S3FileService extends AbstractStorageFileService {
                     HttpStatus.CONFLICT, "S3 직접 업로드 서비스가 구성되지 않았습니다.");
         }
         return directUploadService;
+    }
+
+    private DirectUploadException multipartNotSupported() {
+        return new DirectUploadException(
+                HttpStatus.CONFLICT, "S3 모드에서는 Presigned URL 직접 업로드만 지원합니다.");
     }
 }

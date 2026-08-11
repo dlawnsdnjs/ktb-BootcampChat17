@@ -9,7 +9,9 @@ class FileService {
     this.retryAttempts = 3;
     this.retryDelay = 1000;
     this.activeUploads = new Map();
-    this.directUploadEnabled = process.env.NEXT_PUBLIC_DIRECT_S3_UPLOAD === 'true';
+    // Backend와 동일한 FILE_STORAGE_TYPE을 사용한다. S3 모드에서는 presigned PUT,
+    // local 모드에서는 기존 multipart API를 사용하므로 별도 토글이 필요 없다.
+    this.usesS3Storage = process.env.FILE_STORAGE_TYPE === 's3';
 
     this.allowedTypes = {
       image: {
@@ -86,7 +88,7 @@ class FileService {
       this.activeUploads.set(file.name, source);
 
       let response;
-      if (this.directUploadEnabled) {
+      if (this.usesS3Storage) {
         response = await this.uploadDirect(
           file,
           'CHAT_ATTACHMENT',
@@ -150,7 +152,7 @@ class FileService {
   }
 
   async uploadProfileImage(file, onProgress) {
-    if (!this.directUploadEnabled) {
+    if (!this.usesS3Storage) {
       const formData = new FormData();
       formData.append('profileImage', file);
       const response = await axiosInstance.post('/api/users/profile-image', formData, {
