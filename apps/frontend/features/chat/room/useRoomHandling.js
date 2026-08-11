@@ -89,9 +89,6 @@ export const useRoomHandling = ({
         setLoadingMessages,
         setError,
         setHasMoreMessages,
-        cleanup,
-        logout,
-        onReplace,
         handleReactionUpdate,
         showRejectedMessage: Toast.error.bind(Toast),
       })
@@ -99,11 +96,9 @@ export const useRoomHandling = ({
   }, [
     processMessages,
     setHasMoreMessages,
-    cleanup,
     handleReactionUpdate,
     setLoadingMessages,
     setError,
-    logout,
     socketRef,
     mountedRef,
     messageProcessingRef,
@@ -111,7 +106,6 @@ export const useRoomHandling = ({
     initialLoadCompletedRef,
     setRoom,
     setMessages,
-    onReplace,
   ]);
 
   const handleSessionError = useCallback(async () => {

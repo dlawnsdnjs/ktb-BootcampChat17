@@ -186,13 +186,6 @@ channels:
         $ref: '#/components/messages/MessageReactionUpdateResponse'
     description: 메시지 리액션 업데이트
 
-  duplicateLogin:
-    address: duplicate_login
-    messages:
-      duplicateLoginResponse:
-        $ref: '#/components/messages/DuplicateLoginResponse'
-    description: 중복 로그인 감지
-
   sessionEnded:
     address: session_ended
     messages:
@@ -383,13 +376,6 @@ operations:
       $ref: '#/channels/messageReactionUpdate'
     summary: 메시지 리액션 업데이트 수신
     description: 서버가 메시지 리액션 업데이트를 알립니다.
-
-  receiveDuplicateLogin:
-    action: receive
-    channel:
-      $ref: '#/channels/duplicateLogin'
-    summary: 중복 로그인 감지 수신
-    description: 서버가 중복 로그인을 감지했음을 알립니다.
 
   receiveSessionEnded:
     action: receive
@@ -618,30 +604,6 @@ components:
         required:
           - messageId
           - reactions
-
-    DuplicateLoginResponse:
-      name: DuplicateLogin
-      title: 중복 로그인
-      summary: 중복 로그인 감지 페이로드
-      contentType: application/json
-      payload:
-        type: object
-        properties:
-          type:
-            type: string
-            description: 중복 로그인 유형
-          deviceInfo:
-            type: string
-            description: 디바이스 정보
-          ipAddress:
-            type: string
-            description: IP 주소
-          timestamp:
-            type: integer
-            format: int64
-            description: 타임스탬프 (milliseconds)
-        required:
-          - type
 
     SessionEndedResponse:
       name: SessionEnded
