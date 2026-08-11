@@ -98,6 +98,14 @@ export const AuthProviderWithRouter = ({ children, router }) => {
     setIsLoading(false);
   }, [loadUserFromStorage]);
 
+  useEffect(() => {
+    return socketService.subscribeSessionEnded((event) => {
+      socketService.disconnect();
+      saveUser(null);
+      router.replace(event?.reason === 'logout' ? '/' : '/?error=session_expired');
+    });
+  }, [router, saveUser]);
+
   // 로그인 (API 호출 + 상태 저장)
   const login = useCallback(async (credentials) => {
     const userData = await authService.login(credentials);

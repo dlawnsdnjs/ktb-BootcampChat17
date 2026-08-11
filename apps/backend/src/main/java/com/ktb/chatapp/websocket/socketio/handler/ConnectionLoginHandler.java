@@ -8,10 +8,9 @@ import com.ktb.chatapp.websocket.socketio.SocketUser;
 import com.ktb.chatapp.websocket.socketio.UserRooms;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -27,6 +26,10 @@ import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.*;
 @Component
 @ConditionalOnProperty(name = "socketio.enabled", havingValue = "true", matchIfMissing = true)
 public class ConnectionLoginHandler {
+
+    private static final String USER_ROOM_PREFIX = "user:";
+    private static final String SESSION_ROOM_PREFIX = "session:";
+    private static final String ROOM_LIST = "room-list";
 
     private final SocketIOServer socketIOServer;
     private final ConnectedUsers connectedUsers;
@@ -60,21 +63,19 @@ public class ConnectionLoginHandler {
         String userId = user.id();
         
         try {
-            // 다른 노드에 접속된 사용자는 통보 불가
-            notifyDuplicateLogin(client, userId);
             client.set("user", user);
+            client.joinRooms(connectionRooms(user));
+
+            SocketUser previousUser = connectedUsers.set(userId, user);
+            endPreviousSession(user, previousUser);
             
             userRooms.get(userId).forEach(roomId -> {
                 // 재접속 시 기존 참여 방 재입장 처리
                 roomJoinHandler.handleJoinRoom(client, roomId);
             });
-            
-            connectedUsers.set(userId, user);
 
             log.info("Socket.IO user connected: {} ({}) - Total concurrent users: {}",
                     getUserName(client), userId, connectedUsers.size());
-
-            client.joinRooms(Set.of("user:" + userId, "room-list"));
             
         } catch (Exception e) {
             log.error("Error handling Socket.IO connection", e);
@@ -94,20 +95,17 @@ public class ConnectionLoginHandler {
                 return;
             }
             
-            userRooms.get(userId).forEach(roomId -> {
-                roomLeaveHandler.handleLeaveRoom(client, roomId);
-            });
             String socketId = client.getSessionId().toString();
-            
-            // 해당 사용자의 현재 활성 연결인 경우에만 정리
-            var socketUser = connectedUsers.get(userId);
-            if (socketUser != null && socketId.equals(socketUser.socketId())) {
-                connectedUsers.del(userId);
+
+            // 조회와 삭제 사이에 신규 연결이 등록되어도 그 연결은 삭제하지 않는다.
+            if (connectedUsers.delIfCurrent(userId, socketId)) {
+                userRooms.get(userId).forEach(roomId ->
+                        roomLeaveHandler.handleLeaveRoom(client, roomId));
             } else {
                 log.warn("Socket.IO disconnect: User {} has a different active connection. Skipping cleanup.", userId);
             }
 
-            client.leaveRooms(Set.of("user:" + userId, "room-list"));
+            client.leaveRooms(connectionRooms(getUserDto(client)));
             client.del("user");
             client.disconnect();
 
@@ -136,40 +134,26 @@ public class ConnectionLoginHandler {
         return user != null ? user.name() : null;
     }
     
-    /**
-     * TODO 멀티 클러스터에서 동작 안함
-     * socketIOServer.getRoomOperations("user:" + userId) 로 처리 변경.
-     */
-    private void notifyDuplicateLogin(SocketIOClient client, String userId) {
-        var socketUser = connectedUsers.get(userId);
-        if (socketUser == null) {
+    private void endPreviousSession(
+            SocketUser currentUser,
+            SocketUser previousUser) {
+        if (previousUser == null
+                || Objects.equals(previousUser.authSessionId(), currentUser.authSessionId())) {
             return;
         }
-        String existingSocketId = socketUser.socketId();
-        SocketIOClient existingClient = socketIOServer.getClient(UUID.fromString(existingSocketId));
-        if (existingClient == null) {
-            return;
-        }
-        
-        // Send duplicate login notification
-        existingClient.sendEvent(DUPLICATE_LOGIN, Map.of(
-                "type", "new_login_attempt",
-                "deviceInfo", client.getHandshakeData().getHttpHeaders().get("User-Agent"),
-                "ipAddress", client.getRemoteAddress().toString(),
-                "timestamp", System.currentTimeMillis()
+
+        var previousSession = socketIOServer.getRoomOperations(
+                SESSION_ROOM_PREFIX + previousUser.authSessionId());
+        previousSession.sendEvent(SESSION_ENDED, Map.of(
+                "reason", "duplicate_login",
+                "message", "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
         ));
-        
-        new Thread(() -> {
-            try {
-                Thread.sleep(Duration.ofSeconds(10));
-                existingClient.sendEvent(SESSION_ENDED, Map.of(
-                        "reason", "duplicate_login",
-                        "message", "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
-                ));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Error in duplicate login notification thread", e);
-            }
-        }).start();
+    }
+
+    private Set<String> connectionRooms(SocketUser user) {
+        return Set.of(
+                USER_ROOM_PREFIX + user.id(),
+                SESSION_ROOM_PREFIX + user.authSessionId(),
+                ROOM_LIST);
     }
 }
