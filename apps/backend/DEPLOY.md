@@ -121,6 +121,7 @@ tail -f logs/app.log
    FILE_STORAGE_TYPE=s3
    S3_BUCKET_NAME=ktb-chat-files-prod
    AWS_REGION=ap-northeast-2
+   S3_DIRECT_UPLOAD_ENABLED=false
 
    # 서버 포트
    PORT=5001

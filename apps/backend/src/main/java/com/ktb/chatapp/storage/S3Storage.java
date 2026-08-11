@@ -14,13 +14,19 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 
 @Component
@@ -95,6 +101,77 @@ public class S3Storage implements StoragePort {
                     .build());
         } catch (RuntimeException ex) {
             throw storageFailure("삭제");
+        }
+    }
+
+    @Override
+    public Optional<PresignedUpload> presignUpload(String key, String contentType, Duration ttl) {
+        validateKey(key);
+        if (contentType == null || contentType.isBlank()) {
+            throw new IllegalArgumentException("업로드 Content-Type이 올바르지 않습니다.");
+        }
+        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("사전 서명 URL의 유효 시간이 올바르지 않습니다.");
+        }
+
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType)
+                .tagging("upload-state=pending")
+                .build();
+        try {
+            URI uri = s3Presigner.presignPutObject(PutObjectPresignRequest.builder()
+                            .signatureDuration(ttl)
+                            .putObjectRequest(request)
+                            .build())
+                    .url()
+                    .toURI();
+            return Optional.of(new PresignedUpload(
+                    uri,
+                    Instant.now().plus(ttl),
+                    Map.of(
+                            "Content-Type", contentType,
+                            "x-amz-tagging", "upload-state=pending")));
+        } catch (Exception ex) {
+            throw storageFailure("업로드 URL 발급");
+        }
+    }
+
+    @Override
+    public Optional<StoredObjectMetadata> metadata(String key) {
+        validateKey(key);
+        try {
+            HeadObjectResponse metadata = s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build());
+            return Optional.of(new StoredObjectMetadata(
+                    metadata.contentLength(), metadata.contentType()));
+        } catch (S3Exception ex) {
+            if (ex.statusCode() == 404) {
+                return Optional.empty();
+            }
+            throw storageFailure("메타데이터 조회");
+        } catch (RuntimeException ex) {
+            throw storageFailure("메타데이터 조회");
+        }
+    }
+
+    @Override
+    public boolean markUploadCompleted(String key) {
+        validateKey(key);
+        try {
+            s3Client.putObjectTagging(PutObjectTaggingRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .tagging(Tagging.builder()
+                            .tagSet(Tag.builder().key("upload-state").value("completed").build())
+                            .build())
+                    .build());
+            return true;
+        } catch (RuntimeException ex) {
+            throw storageFailure("업로드 완료 표시");
         }
     }
 
