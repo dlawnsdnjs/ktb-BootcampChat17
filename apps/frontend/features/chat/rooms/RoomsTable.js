@@ -80,7 +80,7 @@ const RoomsTable = ({ rooms, connectionStatus, onJoinRoom }) => {
                 <Button
                   colorPalette="primary"
                   size="md"
-                  onClick={() => onJoinRoom(room._id)}
+                  onClick={() => onJoinRoom(room)}
                   disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
                   data-testid="join-chat-room-button"
                 >

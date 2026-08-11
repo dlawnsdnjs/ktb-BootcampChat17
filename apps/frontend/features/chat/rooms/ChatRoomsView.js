@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorCircleIcon, NetworkIcon, RefreshOutlineIcon } from '@vapor-ui/icons';
 import { Button, Text, Badge, Callout, Box, VStack, HStack, Spinner } from '@vapor-ui/core';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import {
 } from './useServerConnection';
 import { useRoomList } from './useRoomList';
 import RoomsTable from './RoomsTable';
+import RoomPasswordDialog from './RoomPasswordDialog';
 import ConnectionErrorBanner from '@/components/ConnectionErrorBanner';
 
 const STATUS_CONFIG = {
@@ -57,6 +58,43 @@ export default function ChatRoomsView({ router }) {
     isRetrying,
     attemptConnection,
   });
+
+  const [pendingRoom, setPendingRoom] = useState(null);
+  const [passwordError, setPasswordError] = useState('');
+
+  const requestJoinRoom = useCallback(async (room) => {
+    if (room.hasPassword) {
+      setPasswordError('');
+      setPendingRoom(room);
+      return;
+    }
+
+    await handleJoinRoom(room._id);
+  }, [handleJoinRoom]);
+
+  const submitRoomPassword = useCallback(async (password) => {
+    if (!pendingRoom) return;
+
+    const result = await handleJoinRoom(pendingRoom._id, password);
+
+    if (result?.success) {
+      setPendingRoom(null);
+      setPasswordError('');
+      return;
+    }
+
+    if (result?.passwordRejected) {
+      setPasswordError(result.message);
+      return;
+    }
+
+    setPendingRoom(null);
+  }, [pendingRoom, handleJoinRoom]);
+
+  const closePasswordDialog = useCallback(() => {
+    setPendingRoom(null);
+    setPasswordError('');
+  }, []);
 
   const connectionCheckTimerRef = useRef(null);
   const initialFetchStartedRef = useRef(false);
@@ -232,7 +270,7 @@ export default function ChatRoomsView({ router }) {
           <RoomsTable
             rooms={rooms}
             connectionStatus={connectionStatus}
-            onJoinRoom={handleJoinRoom}
+            onJoinRoom={requestJoinRoom}
           />
         ) : !error && (
           <VStack
@@ -250,6 +288,15 @@ export default function ChatRoomsView({ router }) {
           </VStack>
         )}
       </VStack>
+
+      <RoomPasswordDialog
+        key={pendingRoom?._id ?? 'none'}
+        room={pendingRoom}
+        submitting={joiningRoom}
+        errorMessage={passwordError}
+        onSubmit={submitRoomPassword}
+        onClose={closePasswordDialog}
+      />
     </Box>
   );
 }
