@@ -126,8 +126,15 @@ docker build -t chat-app-frontend .
 > 전에 템플릿에서 만들고 배포 주소로 값을 고치세요.
 >
 > ```bash
+> # 기존 multipart 업로드 배포
 > cp .env.production.example .env.production
+>
+> # 또는 S3 Presigned URL 직접 업로드 배포
+> cp .env.s3.production.example .env.production
 > ```
+>
+> S3 템플릿의 `NEXT_PUBLIC_DIRECT_S3_UPLOAD=true`는 빌드 결과물에 인라인됩니다. 이미 빌드한
+> 이미지를 실행하면서 컨테이너 환경변수만 바꾸는 것으로는 업로드 모드를 전환할 수 없습니다.
 
 ### Docker 컨테이너 실행
 

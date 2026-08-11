@@ -3,7 +3,7 @@ package com.ktb.chatapp.controller;
 import com.ktb.chatapp.dto.PresignUploadRequest;
 import com.ktb.chatapp.dto.StandardResponse;
 import com.ktb.chatapp.service.DirectUploadException;
-import com.ktb.chatapp.service.DirectUploadService;
+import com.ktb.chatapp.service.FileService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import lombok.RequiredArgsConstructor;
@@ -18,13 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/uploads")
 public class UploadController {
-    private final DirectUploadService directUploadService;
+    private final FileService fileService;
 
     @PostMapping("/presign")
     public ResponseEntity<?> presign(
             Principal principal, @Valid @RequestBody PresignUploadRequest request) {
         try {
-            return ResponseEntity.ok(directUploadService.presign(principal.getName(), request));
+            return ResponseEntity.ok(fileService.presignUpload(principal.getName(), request));
         } catch (DirectUploadException ex) {
             return ResponseEntity.status(ex.getStatus()).body(StandardResponse.error(ex.getMessage()));
         } catch (UsernameNotFoundException ex) {
