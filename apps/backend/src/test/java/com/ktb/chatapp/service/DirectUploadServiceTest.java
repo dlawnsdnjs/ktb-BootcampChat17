@@ -81,7 +81,6 @@ class DirectUploadServiceTest {
         when(mongoTemplate.findAndModify(any(), any(), any(), any(Class.class))).thenReturn(claimed);
         when(storage.metadata("chat/file.png")).thenReturn(Optional.of(
                 new StoredObjectMetadata(12, "image/png")));
-        when(storage.markUploadCompleted("chat/file.png")).thenReturn(true);
         when(files.save(any(File.class))).thenAnswer(invocation -> {
             File file = invocation.getArgument(0);
             file.setId("file-1");
@@ -147,7 +146,6 @@ class DirectUploadServiceTest {
         when(mongoTemplate.findAndModify(any(), any(), any(), any(Class.class))).thenReturn(claimed);
         when(storage.metadata("profiles/new.png")).thenReturn(Optional.of(
                 new StoredObjectMetadata(12, "image/png")));
-        when(storage.markUploadCompleted("profiles/new.png")).thenReturn(true);
         when(users.save(user)).thenReturn(user);
 
         var response = service.completeProfile("user@example.com", "upload-1");

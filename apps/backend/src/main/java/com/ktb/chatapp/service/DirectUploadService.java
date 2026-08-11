@@ -95,7 +95,6 @@ public class DirectUploadService {
         File savedFile = null;
         try {
             verifyStoredObject(session);
-            markStoredObjectCompleted(session);
             savedFile = fileRepository.save(File.builder()
                     .filename(StorageKey.nameOf(session.getKey()))
                     .originalname(session.getOriginalName())
@@ -135,7 +134,6 @@ public class DirectUploadService {
         boolean userSaved = false;
         try {
             verifyStoredObject(session);
-            markStoredObjectCompleted(session);
             owner.setProfileImage(session.getKey());
             owner.setUpdatedAt(LocalDateTime.now());
             userRepository.save(owner);
@@ -216,13 +214,6 @@ public class DirectUploadService {
         if (request.purpose() == UploadPurpose.PROFILE_IMAGE
                 && !FileUtil.isImageContentType(request.contentType())) {
             throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
-        }
-    }
-
-    private void markStoredObjectCompleted(UploadSession session) {
-        if (!storagePort.markUploadCompleted(session.getKey())) {
-            throw new DirectUploadException(
-                    HttpStatus.CONFLICT, "현재 저장소는 직접 업로드 완료 처리를 지원하지 않습니다.");
         }
     }
 

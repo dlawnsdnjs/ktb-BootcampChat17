@@ -1,7 +1,7 @@
 # S3 파일 저장소 운영 가이드
 
-버킷은 비공개로 유지하고 Backend EC2에는 `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`,
-`s3:PutObjectTagging` 최소 권한을 가진 Instance Profile을 연결합니다. S3 `HeadObject` 요청은
+버킷은 비공개로 유지하고 Backend EC2에는 `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`
+최소 권한을 가진 Instance Profile을 연결합니다. S3 `HeadObject` 요청은
 별도의 IAM 액션이 아니라 `s3:GetObject`로 인가됩니다. 장기 Access Key는 애플리케이션 환경변수에
 저장하지 않습니다.
 
@@ -14,8 +14,7 @@
       "Action": [
         "s3:GetObject",
         "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:PutObjectTagging"
+        "s3:DeleteObject"
       ],
       "Resource": [
         "arn:aws:s3:::ktb-chat-files-prod/chat/*",
@@ -38,22 +37,19 @@
   {
     "AllowedOrigins": ["https://chat.example.com"],
     "AllowedMethods": ["PUT", "GET", "HEAD"],
-    "AllowedHeaders": ["Content-Type", "x-amz-tagging"],
-    "ExposeHeaders": ["ETag"],
+    "AllowedHeaders": ["Content-Type"],
     "MaxAgeSeconds": 3600
   }
 ]
 ```
 
-브라우저가 업로드하고 완료 API를 호출하지 않은 객체에는 `upload-state=pending` 태그가 유지됩니다.
-이 태그가 붙은 객체만 정리하는 Lifecycle 정책을 적용합니다. 정상 완료 객체는 `completed`로 바뀌므로
-prefix만으로 만료 규칙을 만들면 안 됩니다. 정리 기간은 업로드 세션 만료 시간(1시간)보다 길어야 합니다.
-
-Backend IAM에는 기본 객체 권한 외에 완료 태그 갱신을 위한 `s3:PutObjectTagging` 권한도 필요합니다.
+업로드 태그와 `PutObjectTagging`은 사용하지 않습니다. 브라우저가 PUT 후 완료 API를 호출하지 않으면
+객체가 고아로 남을 수 있으므로, 완료 객체와 같은 `chat/`·`profiles/` prefix 전체에 만료 Lifecycle을
+적용하면 안 됩니다. 필요하면 만료된 `UploadSession`을 기준으로 고아 객체만 삭제하는 별도 정리 작업을 둡니다.
 
 ## 활성화 순서
 
-1. CORS와 Lifecycle 적용을 확인합니다.
+1. 버킷 CORS와 IAM 최소 권한을 확인합니다.
 2. Backend `.env`와 Frontend 빌드의 `.env.production`에 같은
    `FILE_STORAGE_TYPE=s3`를 설정합니다. 이 하나의 설정으로 Backend는
    `S3Storage + S3FileService`, Frontend는 Presigned PUT 경로를 사용합니다.

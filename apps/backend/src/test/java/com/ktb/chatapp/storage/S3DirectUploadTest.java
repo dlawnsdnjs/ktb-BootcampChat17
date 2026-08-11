@@ -16,7 +16,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -43,7 +42,7 @@ class S3DirectUploadTest {
         assertThat(captor.getValue().putObjectRequest().key()).isEqualTo("chat/file.png");
         assertThat(captor.getValue().putObjectRequest().contentType()).isEqualTo("image/png");
         assertThat(result.requiredHeaders()).containsEntry("Content-Type", "image/png");
-        assertThat(result.requiredHeaders()).containsEntry("x-amz-tagging", "upload-state=pending");
+        assertThat(result.requiredHeaders()).doesNotContainKey("x-amz-tagging");
     }
 
     @Test
@@ -62,7 +61,8 @@ class S3DirectUploadTest {
             assertThat(result.url().getScheme()).isEqualTo("https");
             assertThat(result.url().getQuery()).contains("X-Amz-Signature=");
             assertThat(result.requiredHeaders())
-                    .containsEntry("x-amz-tagging", "upload-state=pending");
+                    .containsOnlyKeys("Content-Type")
+                    .containsEntry("Content-Type", "image/png");
         }
     }
 
@@ -75,17 +75,4 @@ class S3DirectUploadTest {
                 new StoredObjectMetadata(42L, "image/png"));
     }
 
-    @Test
-    void completionReplacesPendingTag() {
-        assertThat(storage.markUploadCompleted("chat/file.png")).isTrue();
-
-        ArgumentCaptor<PutObjectTaggingRequest> captor =
-                ArgumentCaptor.forClass(PutObjectTaggingRequest.class);
-        verify(s3Client).putObjectTagging(captor.capture());
-        assertThat(captor.getValue().tagging().tagSet())
-                .anySatisfy(tag -> {
-                    assertThat(tag.key()).isEqualTo("upload-state");
-                    assertThat(tag.value()).isEqualTo("completed");
-                });
-    }
 }

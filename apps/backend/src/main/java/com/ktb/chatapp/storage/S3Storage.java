@@ -14,9 +14,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.Tag;
-import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -120,7 +117,6 @@ public class S3Storage implements StoragePort {
                 .bucket(bucket)
                 .key(key)
                 .contentType(contentType)
-                .tagging("upload-state=pending")
                 .build();
         try {
             URI uri = s3Presigner.presignPutObject(PutObjectPresignRequest.builder()
@@ -132,9 +128,7 @@ public class S3Storage implements StoragePort {
             return Optional.of(new PresignedUpload(
                     uri,
                     Instant.now().plus(ttl),
-                    Map.of(
-                            "Content-Type", contentType,
-                            "x-amz-tagging", "upload-state=pending")));
+                    Map.of("Content-Type", contentType)));
         } catch (Exception ex) {
             throw storageFailure("업로드 URL 발급", ex);
         }
@@ -157,23 +151,6 @@ public class S3Storage implements StoragePort {
             throw storageFailure("메타데이터 조회", ex);
         } catch (RuntimeException ex) {
             throw storageFailure("메타데이터 조회", ex);
-        }
-    }
-
-    @Override
-    public boolean markUploadCompleted(String key) {
-        validateKey(key);
-        try {
-            s3Client.putObjectTagging(PutObjectTaggingRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
-                    .tagging(Tagging.builder()
-                            .tagSet(Tag.builder().key("upload-state").value("completed").build())
-                            .build())
-                    .build());
-            return true;
-        } catch (RuntimeException ex) {
-            throw storageFailure("업로드 완료 표시", ex);
         }
     }
 
