@@ -98,6 +98,14 @@ export const AuthProviderWithRouter = ({ children, router }) => {
     setIsLoading(false);
   }, [loadUserFromStorage]);
 
+  useEffect(() => {
+    return socketService.subscribeSessionEnded((event) => {
+      socketService.disconnect();
+      saveUser(null);
+      router.replace(event?.reason === 'logout' ? '/' : '/?error=session_expired');
+    });
+  }, [router, saveUser]);
+
   // 로그인 (API 호출 + 상태 저장)
   const login = useCallback(async (credentials) => {
     const userData = await authService.login(credentials);
@@ -324,14 +332,28 @@ export const withoutAuth = (WrappedComponent) => {
   const WithoutAuthComponent = (props) => {
     const router = useRouter();
     const { isAuthenticated, isLoading } = useAuth();
+    const initialAuthCheckCompleted = useRef(false);
+    const redirect = typeof router.query.redirect === 'string'
+      ? router.query.redirect
+      : undefined;
 
     useEffect(() => {
-      // 라우터가 준비되고 로딩이 끝났을 때
-      if (router.isReady && !isLoading && isAuthenticated) {
-        // 이미 로그인된 사용자는 채팅 페이지로 리다이렉트
-        router.replace('/chat');
+      // 최초 인증 확인이 끝난 뒤 이미 로그인한 사용자만 이동시킨다.
+      // 로그인 폼에서 인증 상태가 바뀐 뒤에는 폼이 목적지로 한 번만 이동한다.
+      if (
+        !router.isReady ||
+        isLoading ||
+        initialAuthCheckCompleted.current
+      ) {
+        return;
       }
-    }, [isAuthenticated, isLoading, router, router.isReady]);
+
+      initialAuthCheckCompleted.current = true;
+
+      if (isAuthenticated) {
+        router.replace(redirect || '/chat');
+      }
+    }, [isAuthenticated, isLoading, redirect, router]);
 
     // 로딩 중이거나 이미 로그인된 사용자인 경우 로딩 화면
     if (isLoading || isAuthenticated) {

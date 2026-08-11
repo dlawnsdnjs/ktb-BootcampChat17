@@ -76,9 +76,6 @@ export const createRoomEventHandlers = ({
   setLoadingMessages,
   setError,
   setHasMoreMessages,
-  cleanup,
-  logout,
-  onReplace,
   handleReactionUpdate,
   showRejectedMessage,
 }) => {
@@ -121,12 +118,6 @@ export const createRoomEventHandlers = ({
     onMessageReactionUpdate: (data) => {
       if (!mountedRef.current) return;
       handleReactionUpdate(data);
-    },
-    onSessionEnded: () => {
-      if (!mountedRef.current) return;
-      cleanup();
-      logout();
-      onReplace('/?error=session_expired');
     },
     onError: (error) => {
       if (!mountedRef.current) return;
