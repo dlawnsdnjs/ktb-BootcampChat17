@@ -62,8 +62,7 @@ class ConnectionLoginHandlerTest {
         verify(connectedUsers).set(user.id(), user);
         verify(client).joinRooms(Set.of(
                 "user:" + user.id(),
-                "session:" + user.authSessionId(),
-                "room-list"));
+                "session:" + user.authSessionId()));
         verify(socketIOServer, never()).getRoomOperations(anyString());
     }
 
@@ -113,8 +112,7 @@ class ConnectionLoginHandlerTest {
         verify(connectedUsers).delIfCurrent(user.id(), socketId.toString());
         verify(client).leaveRooms(Set.of(
                 "user:" + user.id(),
-                "session:" + user.authSessionId(),
-                "room-list"));
+                "session:" + user.authSessionId()));
         verify(client).del("user");
         verify(client).disconnect();
     }

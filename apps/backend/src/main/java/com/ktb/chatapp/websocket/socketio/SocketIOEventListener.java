@@ -17,9 +17,8 @@ import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.*;
 @RequiredArgsConstructor
 public class SocketIOEventListener {
 
-    private static final String ROOM_LIST = "room-list";
-
     private final SocketIOServer socketIOServer;
+    private final RoomListEventDispatcher roomListEventDispatcher;
 
     @EventListener
     public void handleSessionEndedEvent(SessionEndedEvent event) {
@@ -38,7 +37,7 @@ public class SocketIOEventListener {
     @EventListener
     public void handleRoomCreatedEvent(RoomCreatedEvent event) {
         try {
-            socketIOServer.getRoomOperations(ROOM_LIST).sendEvent(ROOM_CREATED, event.getRoomResponse());
+            roomListEventDispatcher.enqueueCreated(event.getRoomResponse());
             log.info("roomCreated 이벤트 발송: roomId={}", event.getRoomResponse().getId());
         } catch (Exception e) {
             log.error("roomCreated 이벤트 발송 실패", e);
@@ -48,7 +47,7 @@ public class SocketIOEventListener {
     @EventListener
     public void handleRoomUpdatedEvent(RoomUpdatedEvent event) {
         try {
-            socketIOServer.getRoomOperations(ROOM_LIST).sendEvent(ROOM_UPDATE, event.getRoomResponse());
+            roomListEventDispatcher.enqueueUpdated(event.getRoomId(), event.getRoomResponse());
             log.info("roomUpdate 이벤트 발송: roomId={}", event.getRoomId());
         } catch (Exception e) {
             log.error("roomUpdate 이벤트 발송 실패: roomId={}", event.getRoomId(), e);
@@ -58,10 +57,8 @@ public class SocketIOEventListener {
     @EventListener
     public void handleRoomActivityEvent(RoomActivityEvent event) {
         try {
-            socketIOServer.getRoomOperations(ROOM_LIST).sendEvent(ROOM_ACTIVITY, Map.of(
-                    "_id", event.getRoomId(),
-                    "recentMessageCount", event.getRecentMessageCount()
-            ));
+            roomListEventDispatcher.enqueueActivity(
+                    event.getRoomId(), event.getRecentMessageCount());
             log.debug("roomActivity 이벤트 발송: roomId={}, recentMessageCount={}",
                     event.getRoomId(), event.getRecentMessageCount());
         } catch (Exception e) {

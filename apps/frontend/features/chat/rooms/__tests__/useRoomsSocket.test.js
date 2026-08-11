@@ -30,6 +30,7 @@ const renderRoomsSocket = (socket, overrides = {}) => {
 
 const createSocket = () => ({
   on: vi.fn(),
+  off: vi.fn(),
   emit: vi.fn(),
   disconnect: vi.fn(),
 });
@@ -42,28 +43,37 @@ describe('useRoomsSocket', () => {
     vi.clearAllMocks();
   });
 
-  it('does not emit joinRoomList because the server joins room-list on connect', async () => {
+  it('subscribes only while the room list hook is mounted and resubscribes on reconnect', async () => {
     const socket = {
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
 
-    renderRoomsSocket(socket);
+    const { unmount } = renderRoomsSocket(socket);
 
     await waitFor(() => {
       expect(socket.on).toHaveBeenCalledWith('connect', expect.any(Function));
     });
 
+    expect(socket.emit).toHaveBeenCalledWith('joinRoomList');
+
     const connectHandler = socket.on.mock.calls.find(([event]) => event === 'connect')[1];
     connectHandler();
 
-    expect(socket.emit).not.toHaveBeenCalledWith('joinRoomList');
+    expect(socket.emit).toHaveBeenCalledTimes(2);
+
+    unmount();
+
+    expect(socket.emit).toHaveBeenCalledWith('leaveRoomList');
+    expect(socket.disconnect).toHaveBeenCalled();
   });
 
   it('does not register roomDeleted without a server-side room delete event', async () => {
     const socket = {
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
@@ -89,6 +99,10 @@ describe('useRoomsSocket', () => {
     });
 
     handlerFor(socket, 'roomActivity')({ _id: 'room-2', recentMessageCount: 9 });
+
+    await waitFor(() => {
+      expect(setRooms).toHaveBeenCalled();
+    });
 
     const updateRooms = setRooms.mock.calls[0][0];
 
@@ -116,5 +130,30 @@ describe('useRoomsSocket', () => {
     handlerFor(socket, 'roomActivity')(undefined);
 
     expect(setRooms).not.toHaveBeenCalled();
+  });
+
+  it('batches room list socket events into one state update', async () => {
+    const socket = createSocket();
+    const setRooms = vi.fn();
+
+    renderRoomsSocket(socket, { setRooms });
+
+    await waitFor(() => {
+      expect(socket.on).toHaveBeenCalledWith('roomCreated', expect.any(Function));
+    });
+
+    handlerFor(socket, 'roomCreated')({ _id: 'room-2', name: 'Created' });
+    handlerFor(socket, 'roomUpdated')({ _id: 'room-2', name: 'Updated' });
+    handlerFor(socket, 'roomActivity')({ _id: 'room-2', recentMessageCount: 7 });
+
+    await waitFor(() => {
+      expect(setRooms).toHaveBeenCalledTimes(1);
+    });
+
+    expect(setRooms.mock.calls[0][0]([{ _id: 'room-1', name: 'Existing' }]))
+      .toEqual([
+        { _id: 'room-2', name: 'Updated', recentMessageCount: 7 },
+        { _id: 'room-1', name: 'Existing' },
+      ]);
   });
 });

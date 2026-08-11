@@ -18,6 +18,45 @@ export const useRoomsSocket = ({
     if (!currentUser?.token) return;
 
     let isSubscribed = true;
+    let roomFlushTimer = null;
+    const pendingRooms = {
+      created: new Map(),
+      updated: new Map(),
+      activity: new Map(),
+    };
+
+    const scheduleRoomsFlush = () => {
+      if (roomFlushTimer !== null) return;
+
+      roomFlushTimer = setTimeout(() => {
+        roomFlushTimer = null;
+        if (!isSubscribed) return;
+
+        const created = Array.from(pendingRooms.created.values()).reverse();
+        const updated = new Map(pendingRooms.updated);
+        const activity = new Map(pendingRooms.activity);
+        pendingRooms.created.clear();
+        pendingRooms.updated.clear();
+        pendingRooms.activity.clear();
+
+        const applyPending = (room) => {
+          const roomId = room?._id;
+          const replacement = updated.get(roomId) || room;
+          const recentMessageCount = activity.get(roomId);
+          return recentMessageCount === undefined
+            ? replacement
+            : { ...replacement, recentMessageCount };
+        };
+
+        setRooms((previousRooms) => {
+          const existingIds = new Set(previousRooms.map((room) => room._id));
+          const additions = created
+            .filter((room) => room?._id && !existingIds.has(room._id))
+            .map(applyPending);
+          return [...additions, ...previousRooms.map(applyPending)];
+        });
+      }, 0);
+    };
 
     const connectSocket = async () => {
       try {
@@ -37,10 +76,13 @@ export const useRoomsSocket = ({
 
         socketRef.current = socket;
 
+        const subscribeRoomList = () => {
+          socket.emit('joinRoomList');
+          setConnectionStatus(CONNECTION_STATUS.CONNECTED);
+        };
+
         const handlers = {
-          connect: () => {
-            setConnectionStatus(CONNECTION_STATUS.CONNECTED);
-          },
+          connect: subscribeRoomList,
           disconnect: () => {
             setConnectionStatus(CONNECTION_STATUS.DISCONNECTED);
           },
@@ -48,32 +90,29 @@ export const useRoomsSocket = ({
             setConnectionStatus(CONNECTION_STATUS.ERROR);
           },
           roomCreated: (newRoom) => {
-            setRooms((prev) => [newRoom, ...prev]);
+            if (!newRoom?._id) return;
+            pendingRooms.created.set(newRoom._id, newRoom);
+            scheduleRoomsFlush();
           },
           roomUpdated: (updatedRoom) => {
-            setRooms((prev) =>
-              prev.map((room) =>
-                room._id === updatedRoom._id ? updatedRoom : room
-              )
-            );
+            if (!updatedRoom?._id) return;
+            pendingRooms.updated.set(updatedRoom._id, updatedRoom);
+            scheduleRoomsFlush();
           },
           // 활성도 지표만 담긴 경량 payload이므로 방 정보를 덮지 않고 병합한다
           roomActivity: (activity) => {
             if (!activity?._id) return;
-
-            setRooms((prev) =>
-              prev.map((room) =>
-                room._id === activity._id
-                  ? { ...room, recentMessageCount: activity.recentMessageCount }
-                  : room
-              )
-            );
+            pendingRooms.activity.set(activity._id, activity.recentMessageCount);
+            scheduleRoomsFlush();
           },
         };
 
         Object.entries(handlers).forEach(([event, handler]) => {
           socket.on(event, handler);
         });
+
+        // socketClient.connect resolves after the initial connect event, so subscribe now.
+        subscribeRoomList();
       } catch (error) {
         if (!isSubscribed) return;
 
@@ -92,7 +131,11 @@ export const useRoomsSocket = ({
 
     return () => {
       isSubscribed = false;
+      if (roomFlushTimer !== null) {
+        clearTimeout(roomFlushTimer);
+      }
       if (socketRef.current) {
+        socketRef.current.emit('leaveRoomList');
         socketRef.current.disconnect();
         socketRef.current = null;
       }

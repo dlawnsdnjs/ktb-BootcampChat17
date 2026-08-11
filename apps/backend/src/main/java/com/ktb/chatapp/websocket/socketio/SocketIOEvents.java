@@ -35,6 +35,12 @@ public final class SocketIOEvents {
      */
     public static final String LEAVE_ROOM = "leaveRoom";
 
+    /** Subscribe to chat-room list updates while the room list is visible. */
+    public static final String JOIN_ROOM_LIST = "joinRoomList";
+
+    /** Stop chat-room list updates after leaving the room list view. */
+    public static final String LEAVE_ROOM_LIST = "leaveRoomList";
+
     /**
      * 이전 메시지 로드 요청
      * Payload: { roomId, before }

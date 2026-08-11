@@ -1,6 +1,8 @@
 package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.event.RoomActivityEvent;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -9,9 +11,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -21,16 +24,25 @@ class RoomActivityNotifierTest {
 
     @Mock private RecentMessageCounter recentMessageCounter;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private ScheduledExecutorService executor;
 
     private RoomActivityNotifier notifier() {
-        return new RoomActivityNotifier(recentMessageCounter, eventPublisher);
+        return new RoomActivityNotifier(recentMessageCounter, eventPublisher, executor, 1000);
+    }
+
+    private Runnable scheduledFlush() {
+        ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(executor).schedule(taskCaptor.capture(), eq(1000L), eq(TimeUnit.MILLISECONDS));
+        return taskCaptor.getValue();
     }
 
     @Test
-    void notifyMessageStored_firstMessageOfRoom_publishesRecentMessageCount() {
+    void notifyMessageStored_firstMessageOfRoom_publishesAfterDelay() {
         when(recentMessageCounter.countRecentMessages("room-1")).thenReturn(7);
 
         notifier().notifyMessageStored("room-1");
+        verifyNoInteractions(recentMessageCounter, eventPublisher);
+        scheduledFlush().run();
 
         ArgumentCaptor<RoomActivityEvent> eventCaptor =
                 ArgumentCaptor.forClass(RoomActivityEvent.class);
@@ -40,24 +52,24 @@ class RoomActivityNotifierTest {
     }
 
     @Test
-    void notifyMessageStored_everyMessage_publishes() {
+    void notifyMessageStored_repeatedMessagesOfSameRoom_areCoalesced() {
         when(recentMessageCounter.countRecentMessages("room-1")).thenReturn(1);
         RoomActivityNotifier notifier = notifier();
 
         notifier.notifyMessageStored("room-1");
         notifier.notifyMessageStored("room-1");
         notifier.notifyMessageStored("room-1");
+        scheduledFlush().run();
 
-        verify(eventPublisher, times(3)).publishEvent(any(RoomActivityEvent.class));
-        verify(recentMessageCounter, times(3)).countRecentMessages("room-1");
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.any(RoomActivityEvent.class));
+        verify(recentMessageCounter).countRecentMessages("room-1");
     }
 
     @Test
     void notifyMessageStored_nullRoomId_doesNothing() {
         notifier().notifyMessageStored(null);
 
-        verifyNoInteractions(recentMessageCounter);
-        verify(eventPublisher, never()).publishEvent(any(RoomActivityEvent.class));
+        verifyNoInteractions(recentMessageCounter, eventPublisher, executor);
     }
 
     @Test
@@ -66,7 +78,19 @@ class RoomActivityNotifierTest {
                 .thenThrow(new RuntimeException("mongo down"));
 
         notifier().notifyMessageStored("room-1");
+        scheduledFlush().run();
 
-        verify(eventPublisher, never()).publishEvent(any(RoomActivityEvent.class));
+        verify(eventPublisher, never()).publishEvent(
+                org.mockito.ArgumentMatchers.any(RoomActivityEvent.class));
+    }
+
+    @Test
+    void notifyMessageStored_schedulerRejects_doesNotAffectMessagePath() {
+        when(executor.schedule(any(Runnable.class), eq(1000L), eq(TimeUnit.MILLISECONDS)))
+                .thenThrow(new IllegalStateException("executor stopped"));
+
+        assertDoesNotThrow(() -> notifier().notifyMessageStored("room-1"));
+
+        verifyNoInteractions(recentMessageCounter, eventPublisher);
     }
 }

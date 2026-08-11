@@ -2,7 +2,6 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.dto.*;
 import com.ktb.chatapp.event.RoomCreatedEvent;
-import com.ktb.chatapp.event.RoomUpdatedEvent;
 import com.ktb.chatapp.model.Room;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.RoomRepository;
@@ -11,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -122,7 +122,7 @@ public class RoomService {
         }
     }
 
-    public Room createRoom(CreateRoomRequest createRoomRequest, String name) {
+    public RoomResponse createRoom(CreateRoomRequest createRoomRequest, String name) {
         User creator = userRepository.findByEmail(name)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + name));
 
@@ -137,23 +137,23 @@ public class RoomService {
         }
 
         Room savedRoom = roomRepository.save(room);
+        RoomResponse roomResponse = mapToRoomResponseBatched(savedRoom, name);
         
         // Publish event for room created
         try {
-            RoomResponse roomResponse = mapToRoomResponse(savedRoom, name);
             eventPublisher.publishEvent(new RoomCreatedEvent(this, roomResponse));
         } catch (Exception e) {
             log.error("roomCreated 이벤트 발행 실패", e);
         }
         
-        return savedRoom;
+        return roomResponse;
     }
 
     public Optional<Room> findRoomById(String roomId) {
         return roomRepository.findById(roomId);
     }
 
-    public Room joinRoom(String roomId, String password, String name) {
+    public RoomResponse joinRoom(String roomId, String password, String name) {
         Optional<Room> roomOpt = roomRepository.findById(roomId);
         if (roomOpt.isEmpty()) {
             return null;
@@ -171,21 +171,18 @@ public class RoomService {
         }
 
         // 이미 참여중인지 확인
-        if (!room.getParticipantIds().contains(user.getId())) {
+        Set<String> participantIds = Optional.ofNullable(room.getParticipantIds())
+                .map(LinkedHashSet::new)
+                .orElseGet(LinkedHashSet::new);
+        if (participantIds.add(user.getId())) {
             // 채팅방 참여
-            room.getParticipantIds().add(user.getId());
-            room = roomRepository.save(room);
-        }
-        
-        // Publish event for room updated
-        try {
-            RoomResponse roomResponse = mapToRoomResponse(room, name);
-            eventPublisher.publishEvent(new RoomUpdatedEvent(this, roomId, roomResponse));
-        } catch (Exception e) {
-            log.error("roomUpdate 이벤트 발행 실패", e);
+            roomRepository.addParticipant(roomId, user.getId());
+            room.setParticipantIds(participantIds);
         }
 
-        return room;
+        RoomResponse roomResponse = mapToRoomResponseBatched(room, name);
+
+        return roomResponse;
     }
 
     private RoomResponse mapToRoomResponse(Room room, String name) {
@@ -225,6 +222,12 @@ public class RoomService {
             .isCreator(creator != null && creator.getId().equals(name))
             .recentMessageCount(recentMessageCount)
             .build();
+    }
+
+    private RoomResponse mapToRoomResponseBatched(Room room, String name) {
+        Map<String, User> usersById = loadRoomUsers(List.of(room));
+        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
+        return mapToRoomResponse(room, name, usersById, recentMessageCount);
     }
 
     private Map<String, User> loadRoomUsers(List<Room> rooms) {

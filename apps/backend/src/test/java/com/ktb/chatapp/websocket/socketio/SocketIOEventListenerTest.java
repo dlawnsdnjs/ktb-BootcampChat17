@@ -15,8 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.SESSION_ENDED;
-import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.ROOM_ACTIVITY;
-import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.ROOM_UPDATE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -29,13 +27,13 @@ class SocketIOEventListenerTest {
 
     @Mock private SocketIOServer socketIOServer;
     @Mock private BroadcastOperations userOperations;
-    @Mock private BroadcastOperations roomListOperations;
+    @Mock private RoomListEventDispatcher roomListEventDispatcher;
 
     private SocketIOEventListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new SocketIOEventListener(socketIOServer);
+        listener = new SocketIOEventListener(socketIOServer, roomListEventDispatcher);
     }
 
     @Test
@@ -75,25 +73,16 @@ class SocketIOEventListenerTest {
                 .name("Updated room")
                 .build();
         RoomUpdatedEvent event = new RoomUpdatedEvent(this, "room-1", roomResponse);
-        when(socketIOServer.getRoomOperations("room-list")).thenReturn(roomListOperations);
-
         listener.handleRoomUpdatedEvent(event);
 
-        verify(roomListOperations).sendEvent(ROOM_UPDATE, roomResponse);
+        verify(roomListEventDispatcher).enqueueUpdated("room-1", roomResponse);
     }
 
     @Test
     void handleRoomActivityEvent_sendsRecentMessageCountToRoomList() {
         RoomActivityEvent event = new RoomActivityEvent(this, "room-1", 12);
-        when(socketIOServer.getRoomOperations("room-list")).thenReturn(roomListOperations);
-
         listener.handleRoomActivityEvent(event);
 
-        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(roomListOperations).sendEvent(eq(ROOM_ACTIVITY), payloadCaptor.capture());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) payloadCaptor.getValue();
-        assertEquals("room-1", payload.get("_id"));
-        assertEquals(12, payload.get("recentMessageCount"));
+        verify(roomListEventDispatcher).enqueueActivity("room-1", 12);
     }
 }

@@ -29,7 +29,6 @@ public class ConnectionLoginHandler {
 
     private static final String USER_ROOM_PREFIX = "user:";
     private static final String SESSION_ROOM_PREFIX = "session:";
-    private static final String ROOM_LIST = "room-list";
 
     private final SocketIOServer socketIOServer;
     private final ConnectedUsers connectedUsers;
@@ -153,7 +152,6 @@ public class ConnectionLoginHandler {
     private Set<String> connectionRooms(SocketUser user) {
         return Set.of(
                 USER_ROOM_PREFIX + user.id(),
-                SESSION_ROOM_PREFIX + user.authSessionId(),
-                ROOM_LIST);
+                SESSION_ROOM_PREFIX + user.authSessionId());
     }
 }

@@ -2,10 +2,13 @@ package com.ktb.chatapp.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.ktb.chatapp.dto.RoomResponse;
 import com.ktb.chatapp.dto.RoomsResponse;
 import com.ktb.chatapp.model.Room;
 import com.ktb.chatapp.model.User;
@@ -14,6 +17,7 @@ import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,5 +70,35 @@ class RoomServiceTest {
         verify(recentMessageCounter).countRecentMessages(anyCollection());
         verify(recentMessageCounter, never())
                 .countRecentMessages(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void joinRoom_usesAtomicParticipantUpdateAndBuildsOneBatchedResponse() {
+        User creator = User.builder().id("user-1").name("Creator")
+                .email("creator@example.com").build();
+        User joiningUser = User.builder().id("user-2").name("Joiner")
+                .email("joiner@example.com").build();
+        Room room = Room.builder().id("room-1").name("Room").creator("user-1")
+                .participantIds(Set.of("user-1"))
+                .createdAt(LocalDateTime.now()).build();
+
+        when(roomRepository.findById("room-1")).thenReturn(Optional.of(room));
+        when(userRepository.findByEmail("joiner@example.com"))
+                .thenReturn(Optional.of(joiningUser));
+        when(userRepository.findAllById(anyCollection()))
+                .thenReturn(List.of(creator, joiningUser));
+        when(recentMessageCounter.countRecentMessages("room-1")).thenReturn(3);
+        RoomService service = new RoomService(roomRepository, userRepository,
+                recentMessageCounter, passwordEncoder, eventPublisher);
+
+        RoomResponse response = service.joinRoom("room-1", null, "joiner@example.com");
+
+        assertThat(response.getParticipants()).extracting("id")
+                .containsExactlyInAnyOrder("user-1", "user-2");
+        verify(roomRepository).addParticipant("room-1", "user-2");
+        verify(roomRepository, never()).save(room);
+        verify(userRepository).findAllById(anyCollection());
+        verify(userRepository, never()).findById(anyString());
+        verifyNoInteractions(eventPublisher);
     }
 }
