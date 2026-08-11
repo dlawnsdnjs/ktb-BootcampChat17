@@ -32,7 +32,6 @@ EmptyMessages.displayName = 'EmptyMessages';
 const ChatMessages = ({
   messages = [],
   currentUser = null,
-  room = null,
   loadingMessages = false,
   hasMoreMessages = true,
   onReactionAdd = () => {},
@@ -77,7 +76,6 @@ const ChatMessages = ({
 
     const commonProps = {
       currentUser,
-      room,
       onReactionAdd,
       onReactionRemove
     };
@@ -104,7 +102,7 @@ const ChatMessages = ({
       />
       </div>
     );
-  }, [currentUser, room, isMine, onReactionAdd, onReactionRemove]);
+  }, [currentUser, isMine, onReactionAdd, onReactionRemove]);
 
   return (
     <VStack

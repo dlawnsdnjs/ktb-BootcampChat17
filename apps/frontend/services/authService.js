@@ -1,6 +1,7 @@
 import axios from 'axios';
 import api, { getAuthHeaders, HEALTH_TIMEOUT_MS } from '../lib/api/client';
 import { loadStoredUser } from '../lib/auth/authStorage';
+import { API_REQUEST_METRICS, measureApiRequest } from '../lib/api/requestMetrics';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -40,10 +41,14 @@ class AuthService {
    */
   async login(credentials) {
     try {
-      const response = await api.post('/api/auth/login', credentials, {
-        skipAuth: true,
-        handleAuthError: false,
-      });
+      const response = await measureApiRequest(
+        API_REQUEST_METRICS.LOGIN,
+        () =>
+          api.post('/api/auth/login', credentials, {
+            skipAuth: true,
+            handleAuthError: false,
+          })
+      );
 
       if (response.data?.success && response.data?.token) {
         const userData = {
@@ -95,22 +100,23 @@ class AuthService {
     }
   }
 
-  /**
-   * 회원가입 API 호출
-   * 상태 관리는 AuthContext에서 처리
-   */
   async register(userData) {
+    let response;
+
     try {
-      const response = await api.post('/api/auth/register', userData);
-
-      if (response.data?.success) {
-        return response.data;
-      }
-
-      throw new Error(response.data?.message || '회원가입에 실패했습니다.');
+      response = await measureApiRequest(
+        API_REQUEST_METRICS.REGISTER,
+        () => api.post('/api/auth/register', userData)
+      );
     } catch (error) {
       throw this._handleError(error);
     }
+
+    if (response.data?.success) {
+      return response.data;
+    }
+
+    throw new Error(response.data?.message || '회원가입에 실패했습니다.');
   }
   
   /**
@@ -146,9 +152,6 @@ class AuthService {
     }
   }
 
-  /**
-   * 비밀번호 변경 API 호출
-   */
   async changePassword(currentPassword, newPassword, token, sessionId) {
     try {
       if (!token) {
@@ -227,10 +230,14 @@ class AuthService {
         throw new Error('API URL이 설정되지 않았습니다.');
       }
 
-      const response = await api.get('/api/health', {
-        timeout: HEALTH_TIMEOUT_MS,
-        validateStatus: (status) => status < 500 // 5xx 에러만 실제 에러로 처리
-      });
+      const response = await measureApiRequest(
+        API_REQUEST_METRICS.HEALTH_CHECK,
+        () =>
+          api.get('/api/health', {
+            timeout: HEALTH_TIMEOUT_MS,
+            validateStatus: (status) => status < 500 // 5xx 에러만 실제 에러로 처리
+          })
+      );
 
       return response.data?.status === 'ok' || response.status === 200;
     } catch (error) {
