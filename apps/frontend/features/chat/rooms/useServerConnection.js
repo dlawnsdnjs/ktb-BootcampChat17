@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import axiosInstance from '@/services/axios';
 import { HEALTH_TIMEOUT_MS } from '@/lib/api/client';
+import { calculateFullJitterDelay } from '@/lib/retry/backoff';
 
 export const CONNECTION_STATUS = {
   CHECKING: 'checking',
@@ -13,7 +14,7 @@ export const CONNECTION_STATUS = {
 export const RETRY_CONFIG = {
   maxRetries: 1,
   baseDelay: 3000,
-  maxDelay: 3000,
+  maxDelay: 30000,
   backoffFactor: 2,
   reconnectInterval: 30000,
 };
@@ -24,11 +25,12 @@ export const useServerConnection = () => {
   const [isRetrying, setIsRetrying] = useState(false);
 
   const getRetryDelay = useCallback((count) => {
-    const delay =
-      RETRY_CONFIG.baseDelay *
-      Math.pow(RETRY_CONFIG.backoffFactor, count) *
-      (1 + Math.random() * 0.1);
-    return Math.min(delay, RETRY_CONFIG.maxDelay);
+    return calculateFullJitterDelay({
+      attempt: count,
+      baseDelay: RETRY_CONFIG.baseDelay,
+      maxDelay: RETRY_CONFIG.maxDelay,
+      backoffFactor: RETRY_CONFIG.backoffFactor,
+    });
   }, []);
 
   const attemptConnection = useCallback(async (retryAttempt = 0) => {
@@ -37,10 +39,10 @@ export const useServerConnection = () => {
 
       const response = await axiosInstance.get('/api/health', {
         timeout: HEALTH_TIMEOUT_MS,
-        retries: 1,
       });
 
       if (response?.status === 401) {
+        setIsRetrying(false);
         setConnectionStatus(CONNECTION_STATUS.ERROR);
         throw new Error('AUTH_EXPIRED');
       }
@@ -51,22 +53,27 @@ export const useServerConnection = () => {
       if (isConnected) {
         setConnectionStatus(CONNECTION_STATUS.CONNECTED);
         setRetryCount(0);
+        setIsRetrying(false);
         return true;
       }
 
       throw new Error('Server not ready');
     } catch (error) {
       if (error.response?.status === 401 || error.message === 'AUTH_EXPIRED') {
+        setIsRetrying(false);
         setConnectionStatus(CONNECTION_STATUS.ERROR);
         throw new Error('AUTH_EXPIRED');
       }
 
       if (!error.response && retryAttempt < RETRY_CONFIG.maxRetries) {
         const delay = getRetryDelay(retryAttempt);
+        setRetryCount(retryAttempt + 1);
+        setIsRetrying(true);
         await new Promise((resolve) => setTimeout(resolve, delay));
         return attemptConnection(retryAttempt + 1);
       }
 
+      setIsRetrying(false);
       setConnectionStatus(CONNECTION_STATUS.ERROR);
       throw new Error('SERVER_UNREACHABLE');
     }

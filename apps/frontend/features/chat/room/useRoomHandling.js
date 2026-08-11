@@ -3,10 +3,23 @@ import socketClient from '@/lib/socket/socketClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toast } from '@/components/Toast';
 import api, { getAuthHeaders } from '@/lib/api/client';
+import { calculateFullJitterDelay } from '@/lib/retry/backoff';
 import {
   createRoomEventHandlers,
   processLoadedRoomMessages,
 } from './roomEventHandlers';
+
+const MAX_MESSAGE_RETRY_ATTEMPTS = 2;
+const MESSAGE_TIMEOUT = 5000;
+const MESSAGE_RETRY_CONFIG = {
+  baseDelay: 1000,
+  maxDelay: 4000,
+  backoffFactor: 2,
+};
+
+const isRetryableMessageLoadError = (error) =>
+  error?.message === '메시지 로딩 시간이 초과되었습니다.' ||
+  ['ECONNABORTED', 'ECONNRESET', 'ETIMEDOUT'].includes(error?.code);
 
 export const useRoomHandling = ({
   roomId,
@@ -44,9 +57,6 @@ export const useRoomHandling = ({
   const setupPromiseRef = useRef(null);
   const roomEventsUnsubscribeRef = useRef(null);
   const MAX_SOCKET_RECONNECT_ATTEMPTS = 3;
-  const MAX_MESSAGE_RETRY_ATTEMPTS = 3;
-  const MESSAGE_TIMEOUT = 5000;
-  const MESSAGE_RETRY_DELAY = 2000;
 
   const processMessages = useCallback(
     (loadedMessages, hasMore, isInitialLoad = false) => {
@@ -293,9 +303,17 @@ export const useRoomHandling = ({
           processMessages(response.messages, response.hasMore, true);
           return response;
         } catch (error) {
-          if (retryCount < MAX_MESSAGE_RETRY_ATTEMPTS) {
+          if (
+            isRetryableMessageLoadError(error) &&
+            retryCount < MAX_MESSAGE_RETRY_ATTEMPTS
+          ) {
+            const delay = calculateFullJitterDelay({
+              attempt: retryCount,
+              ...MESSAGE_RETRY_CONFIG,
+            });
+
             await new Promise((resolve) =>
-              setTimeout(resolve, MESSAGE_RETRY_DELAY)
+              setTimeout(resolve, delay)
             );
             return loadMessagesWithRetry(retryCount + 1);
           }
