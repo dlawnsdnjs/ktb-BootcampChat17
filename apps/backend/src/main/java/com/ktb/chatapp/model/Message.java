@@ -11,6 +11,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,7 +33,10 @@ import java.util.Set;
     name = "room_timestamp_desc_idx",
     def = "{'room': 1, 'timestamp': -1}"
 )
-public class Message {
+public class Message implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Id
     private String id;
@@ -77,7 +82,10 @@ public class Message {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class MessageReader {
+    public static class MessageReader implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
         private String userId;
         private LocalDateTime readAt;
     }
