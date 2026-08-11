@@ -1,8 +1,6 @@
 package com.ktb.chatapp.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.io.Serial;
-import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -22,10 +20,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "rooms")
-public class Room implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class Room {
 
     @Id
     private String id;
