@@ -2,6 +2,8 @@ package com.ktb.chatapp.repository;
 
 import com.ktb.chatapp.model.Message;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -12,6 +14,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MessageRepository extends MongoRepository<Message, String> {
     Slice<Message> findByRoomIdAndTimestampBefore(String roomId, LocalDateTime timestamp, Pageable pageable);
+
+    /**
+     * Mutable state is deliberately loaded separately from the cached immutable
+     * message body so read receipts and reactions never become stale.
+     */
+    @Query(
+            value = "{ '_id': { '$in': ?0 } }",
+            fields = "{ '_id': 1, 'readers': 1, 'reactions': 1 }")
+    List<Message> findMutableStateByIdIn(Collection<String> messageIds);
+
     /**
      * 특정 시간 이후의 메시지 수 카운트
      * 최근 N분간 메시지 수를 조회할 때 사용

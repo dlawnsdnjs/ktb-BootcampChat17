@@ -8,40 +8,78 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.MessageRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.service.MessageReadStatusService;
+import com.ktb.chatapp.service.cache.MessagePageCache;
+import com.ktb.chatapp.service.cache.MessagePageSnapshot;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
-import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import static java.util.Collections.emptyList;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class MessageLoader {
 
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final MessageResponseMapper messageResponseMapper;
     private final MessageReadStatusService messageReadStatusService;
+    private final MessagePageCache messagePageCache;
 
     private static final int BATCH_SIZE = 30;
+
+    @Autowired
+    public MessageLoader(
+            MessageRepository messageRepository,
+            UserRepository userRepository,
+            MessageResponseMapper messageResponseMapper,
+            MessageReadStatusService messageReadStatusService,
+            MessagePageCache messagePageCache) {
+        this.messageRepository = messageRepository;
+        this.userRepository = userRepository;
+        this.messageResponseMapper = messageResponseMapper;
+        this.messageReadStatusService = messageReadStatusService;
+        this.messagePageCache = messagePageCache;
+    }
+
+    /**
+     * Keeps direct unit/integration construction backward compatible. Caching is
+     * applied by the Spring-managed MessagePageCache proxy in the running app.
+     */
+    public MessageLoader(
+            MessageRepository messageRepository,
+            UserRepository userRepository,
+            MessageResponseMapper messageResponseMapper,
+            MessageReadStatusService messageReadStatusService) {
+        this(
+                messageRepository,
+                userRepository,
+                messageResponseMapper,
+                messageReadStatusService,
+                new MessagePageCache(messageRepository));
+    }
 
     /**
      * 메시지 로드
      */
     public FetchMessagesResponse loadMessages(FetchMessagesRequest data, String userId) {
         try {
-            return loadMessagesInternal(data.roomId(), data.limit(BATCH_SIZE), data.before(LocalDateTime.now()), userId);
+            int limit = data.limit(BATCH_SIZE);
+            MessagePageSnapshot page = data.before() != null && data.before() > 0
+                    ? messagePageCache.loadBefore(
+                            data.roomId(), limit, data.before(LocalDateTime.now()))
+                    : messagePageCache.loadLatest(data.roomId(), limit);
+            return createResponse(data.roomId(), page, userId);
         } catch (Exception e) {
             log.error("Error loading initial messages for room {}", data.roomId(), e);
             return FetchMessagesResponse.builder()
@@ -51,21 +89,13 @@ public class MessageLoader {
         }
     }
 
-    private FetchMessagesResponse loadMessagesInternal(
+    private FetchMessagesResponse createResponse(
             String roomId,
-            int limit,
-            LocalDateTime before,
+            MessagePageSnapshot page,
             String userId) {
-        Pageable pageable = PageRequest.of(0, limit, Sort.by("timestamp").descending());
+        List<Message> sortedMessages = page.toMessages();
+        overlayMutableState(sortedMessages);
 
-        Slice<Message> messagePage = messageRepository
-                .findByRoomIdAndTimestampBefore(roomId, before, pageable);
-
-        List<Message> messages = messagePage.getContent();
-
-        // DESC로 조회했으므로 ASC로 재정렬 (채팅 UI 표시 순서)
-        List<Message> sortedMessages = messages.reversed();
-        
         var messageIds = sortedMessages.stream().map(Message::getId).toList();
         messageReadStatusService.updateReadStatus(messageIds, userId);
         
@@ -79,15 +109,49 @@ public class MessageLoader {
         List<MessageResponse> messageResponses =
                 messageResponseMapper.mapToMessageResponses(sortedMessages, usersById);
 
-        boolean hasMore = messagePage.hasNext();
-
-        log.debug("Messages loaded - roomId: {}, limit: {}, count: {}, hasMore: {}",
-                roomId, limit, messageResponses.size(), hasMore);
+        log.debug("Messages loaded - roomId: {}, count: {}, hasMore: {}",
+                roomId, messageResponses.size(), page.hasMore());
 
         return FetchMessagesResponse.builder()
                 .messages(messageResponses)
-                .hasMore(hasMore)
+                .hasMore(page.hasMore())
                 .build();
     }
 
+    private void overlayMutableState(List<Message> messages) {
+        if (messages.isEmpty()) {
+            return;
+        }
+
+        List<String> messageIds = messages.stream().map(Message::getId).toList();
+        List<Message> mutableStates = messageRepository.findMutableStateByIdIn(messageIds);
+        if (mutableStates == null || mutableStates.isEmpty()) {
+            return;
+        }
+
+        Map<String, Message> mutableStatesById = mutableStates.stream()
+                .filter(message -> message.getId() != null)
+                .collect(Collectors.toMap(Message::getId, Function.identity()));
+
+        for (Message message : messages) {
+            Message mutableState = mutableStatesById.get(message.getId());
+            if (mutableState == null) {
+                continue;
+            }
+            message.setReaders(mutableState.getReaders() == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>(mutableState.getReaders()));
+            message.setReactions(copyReactions(mutableState.getReactions()));
+        }
+    }
+
+    private Map<String, Set<String>> copyReactions(Map<String, Set<String>> reactions) {
+        if (reactions == null || reactions.isEmpty()) {
+            return new HashMap<>();
+        }
+        return reactions.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> new HashSet<>(entry.getValue())));
+    }
 }
