@@ -9,6 +9,7 @@ class FileService {
     this.retryAttempts = 3;
     this.retryDelay = 1000;
     this.activeUploads = new Map();
+    this.directUploadEnabled = process.env.NEXT_PUBLIC_DIRECT_S3_UPLOAD === 'true';
 
     this.allowedTypes = {
       image: {
@@ -81,35 +82,33 @@ class FileService {
     }
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       const source = CancelToken.source();
       this.activeUploads.set(file.name, source);
 
-      const uploadUrl = this.baseUrl ?
-        `${this.baseUrl}/api/files/upload` :
-        '/api/files/upload';
+      let response;
+      if (this.directUploadEnabled) {
+        response = await this.uploadDirect(
+          file,
+          'CHAT_ATTACHMENT',
+          '/api/files/upload/complete',
+          onProgress,
+          source.token
+        );
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadUrl = this.baseUrl ?
+          `${this.baseUrl}/api/files/upload` :
+          '/api/files/upload';
 
-      // token과 sessionId는 axios 인터셉터에서 자동으로 추가되므로
-      // 여기서는 명시적으로 전달하지 않아도 됩니다
-      const response = await axiosInstance.post(uploadUrl, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        // 업로드는 한도가 50MB 라 공통 타임아웃으로는 정상 전송도 끊긴다.
-        timeout: 30000,
-        cancelToken: source.token,
-        withCredentials: true,
-        onUploadProgress: (progressEvent) => {
-          if (onProgress) {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(percentCompleted);
-          }
-        }
-      });
+        response = await axiosInstance.post(uploadUrl, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 30000,
+          cancelToken: source.token,
+          withCredentials: true,
+          onUploadProgress: this.progressHandler(onProgress)
+        });
+      }
 
       this.activeUploads.delete(file.name);
 
@@ -148,6 +147,58 @@ class FileService {
 
       return this.handleUploadError(error);
     }
+  }
+
+  async uploadProfileImage(file, onProgress) {
+    if (!this.directUploadEnabled) {
+      const formData = new FormData();
+      formData.append('profileImage', file);
+      const response = await axiosInstance.post('/api/users/profile-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+        onUploadProgress: this.progressHandler(onProgress)
+      });
+      return response.data;
+    }
+
+    const response = await this.uploadDirect(
+      file,
+      'PROFILE_IMAGE',
+      '/api/users/profile-image/complete',
+      onProgress
+    );
+    return response.data;
+  }
+
+  async uploadDirect(file, purpose, completeUrl, onProgress, cancelToken) {
+    const presignResponse = await axiosInstance.post('/api/uploads/presign', {
+      purpose,
+      originalName: file.name,
+      contentType: file.type,
+      size: file.size
+    }, { cancelToken });
+    const { uploadId, uploadUrl, requiredHeaders = {} } = presignResponse.data;
+
+    await axios.put(uploadUrl, file, {
+      headers: requiredHeaders,
+      timeout: 30000,
+      cancelToken,
+      onUploadProgress: this.progressHandler(onProgress),
+      withCredentials: false
+    });
+
+    return axiosInstance.post(completeUrl, { uploadId }, { cancelToken });
+  }
+
+  progressHandler(onProgress) {
+    return (progressEvent) => {
+      if (!onProgress) return;
+      const total = progressEvent.total || progressEvent.loaded;
+      const percentCompleted = total
+        ? Math.round((progressEvent.loaded * 100) / total)
+        : 0;
+      onProgress(percentCompleted);
+    };
   }
   getFileUrl(filename, forPreview = false) {
     if (!filename) return '';

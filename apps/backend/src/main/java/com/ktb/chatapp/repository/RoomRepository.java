@@ -7,9 +7,12 @@ import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface RoomRepository extends MongoRepository<Room, String> {
+
+    List<Room> findAllByOrderByCreatedAtDesc();
 
     // 가장 최근에 생성된 방 조회 (Health Check용)
     @Query(value = "{}", sort = "{ 'createdAt': -1 }")
