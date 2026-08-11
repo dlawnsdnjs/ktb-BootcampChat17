@@ -20,8 +20,7 @@ const FileMessage = ({
   isMine = false,
   currentUser = null,
   onReactionAdd,
-  onReactionRemove,
-  room = null
+  onReactionRemove
 }) => {
   const { user } = useAuth();
   const [error, setError] = useState(null);
@@ -362,7 +361,6 @@ const FileMessage = ({
             </div>
             <ReadStatus
               messageType={msg.type}
-              participants={room?.participants || []}
               readers={msg.readers || []}
               messageId={msg._id}
               messageRef={messageDomRef}
@@ -380,7 +378,6 @@ const FileMessage = ({
           onReactionAdd={onReactionAdd}
           onReactionRemove={onReactionRemove}
           isMine={isMine}
-          room={room}
         />
       </VStack>
     </div>

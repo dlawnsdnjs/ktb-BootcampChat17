@@ -10,8 +10,7 @@ const UserMessage = ({
   isMine = false, 
   currentUser = null,
   onReactionAdd,
-  onReactionRemove,
-  room = null
+  onReactionRemove
 }) => {
   // 메시지 DOM 요소에 대한 ref 생성
   const messageDomRef = useRef(null);
@@ -81,7 +80,6 @@ const UserMessage = ({
             </div>
             <ReadStatus
               messageType={msg.type}
-              participants={room?.participants || []}
               readers={msg.readers || []}
               messageId={msg._id}
               messageRef={messageDomRef}
@@ -99,7 +97,6 @@ const UserMessage = ({
           onReactionAdd={onReactionAdd}
           onReactionRemove={onReactionRemove}
           isMine={isMine}
-          room={room}
         />
       </VStack>
     </div>
@@ -111,8 +108,7 @@ UserMessage.defaultProps = {
   isMine: false,
   currentUser: null,
   onReactionAdd: () => {},
-  onReactionRemove: () => {},
-  room: null
+  onReactionRemove: () => {}
 };
 
 export default React.memo(UserMessage);

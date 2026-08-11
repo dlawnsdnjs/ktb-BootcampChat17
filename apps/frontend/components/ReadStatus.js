@@ -2,10 +2,10 @@ import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react'
 import { ConfirmOutlineIcon } from '@vapor-ui/icons';
 import { Text, HStack } from '@vapor-ui/core';
 import socketClient from '@/lib/socket/socketClient';
+import { useParticipants } from '@/features/chat/room/ParticipantsContext';
 
-const ReadStatus = ({ 
+const ReadStatus = ({
   messageType = 'text',
-  participants = [],
   readers = [],
   className = '',
   messageId = null,
@@ -15,6 +15,7 @@ const ReadStatus = ({
   const [hasMarkedAsRead, setHasMarkedAsRead] = useState(false);
   const statusRef = useRef(null);
   const observerRef = useRef(null);
+  const participants = useParticipants();
 
   // 읽지 않은 참여자 명단 생성 
   const unreadParticipants = useMemo(() => {
