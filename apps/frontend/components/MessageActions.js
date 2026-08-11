@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { LikeIcon, CopyIcon } from '@vapor-ui/icons';
 import { Button, IconButton, VStack, HStack, Box } from '@vapor-ui/core';
 import EmojiPicker from './EmojiPicker';
+import { useParticipants } from '@/features/chat/room/ParticipantsContext';
 import { Toast } from './Toast';
 
 const FALLBACK_COPY_ELEMENT_ID = 'message-copy-fallback';
@@ -71,9 +72,9 @@ const MessageActions = ({
   currentUserId,
   onReactionAdd,
   onReactionRemove,
-  isMine = false,
-  room = null
+  isMine = false
 }) => {
+  const participants = useParticipants();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [tooltipStates, setTooltipStates] = useState({});
   const [leftOffset, setLeftOffset] = useState(0);
@@ -148,19 +149,18 @@ const MessageActions = ({
   }, []);
 
   const getReactionTooltip = useCallback((emoji, userIds) => {
-    if (!userIds || !room?.participants) {
+    if (!userIds || !participants) {
       return '';
     }
 
-    // room.participants가 배열인지 확인
-    if (!Array.isArray(room.participants)) {
-      console.warn('room.participants is not an array:', room.participants);
+    if (!Array.isArray(participants)) {
+      console.warn('participants is not an array:', participants);
       return '';
     }
 
     // 사용자 ID들을 문자열로 변환하여 비교하기 위한 Map 생성
     const participantMap = new Map(
-      room.participants.map(p => [
+      participants.map(p => [
         String(p._id || p.id), 
         p.name
       ])
@@ -187,7 +187,7 @@ const MessageActions = ({
     });
 
     return uniqueUsers.join(', ');
-  }, [currentUserId, room]);
+  }, [currentUserId, participants]);
 
   const renderReactions = useCallback(() => {
     if (!reactions || Object.keys(reactions).length === 0) {
@@ -333,8 +333,7 @@ MessageActions.defaultProps = {
   currentUserId: null,
   onReactionAdd: () => {},
   onReactionRemove: () => {},
-  isMine: false,
-  room: null
+  isMine: false
 };
 
 export default React.memo(MessageActions);

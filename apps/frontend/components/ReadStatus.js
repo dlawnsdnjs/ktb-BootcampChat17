@@ -4,10 +4,10 @@ import { Text, HStack } from '@vapor-ui/core';
 import socketClient from '@/lib/socket/socketClient';
 import readReceiptBatcher from '@/lib/socket/readReceiptBatcher';
 import { useRoomId } from '@/hooks/useRoomId';
+import { useParticipants } from '@/features/chat/room/ParticipantsContext';
 
-const ReadStatus = ({ 
+const ReadStatus = ({
   messageType = 'text',
-  participants = [],
   readers = [],
   className = '',
   messageId = null,
@@ -18,6 +18,7 @@ const ReadStatus = ({
   const statusRef = useRef(null);
   const observerRef = useRef(null);
   const roomId = useRoomId();
+  const participants = useParticipants();
 
   // 읽지 않은 참여자 명단 생성 
   const unreadParticipants = useMemo(() => {

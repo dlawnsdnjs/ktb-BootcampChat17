@@ -16,6 +16,8 @@ export class SocketService {
     this.connectionReject = null;
     this.connectionTimeout = null;
     this.retryDelay = 1000;
+    this.reconnectionDelayMax = 30000;
+    this.randomizationFactor = 1.0;
     this.connected = false;
   }
 
@@ -65,7 +67,8 @@ export class SocketService {
           reconnection: true,
           reconnectionAttempts: this.maxReconnectAttempts,
           reconnectionDelay: this.retryDelay,
-          reconnectionDelayMax: 5000,
+          reconnectionDelayMax: this.reconnectionDelayMax,
+          randomizationFactor: this.randomizationFactor,
           timeout: 20000,
           forceNew: true
         });

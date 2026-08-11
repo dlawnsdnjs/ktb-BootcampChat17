@@ -14,6 +14,7 @@ import ChatMessages from '@/components/ChatMessages';
 import ChatInput from '@/components/ChatInput';
 import ChatRoomInfo from '@/components/ChatRoomInfo';
 import ConnectionErrorBanner from '@/components/ConnectionErrorBanner';
+import { ParticipantsProvider } from './ParticipantsContext';
 
 const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
   const {
@@ -135,7 +136,6 @@ const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
       <ChatMessages
         messages={messages}
         currentUser={currentUser}
-        room={room}
         onReactionAdd={handleReactionAdd}
         onReactionRemove={handleReactionRemove}
         loadingMessages={loadingMessages}
@@ -154,36 +154,38 @@ const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
   }
 
   return (
-    <VStack
-      $css={{
-        gap: '$0',
-        height: 'calc(100vh - 80px)',
-        margin: '0 auto',
-        backgroundColor: 'var(--vapor-color-surface-normal)',
-      }}
-    >
-      {/* 채팅방 정보 (참여자 목록 및 연결 상태) */}
-      <ChatRoomInfo room={room} connectionStatus={connectionStatus} />
-
-      {/* 메시지 영역 */}
+    <ParticipantsProvider participants={room?.participants}>
       <VStack
-        className="flex-1"
         $css={{
-          overflow: 'hidden',
-          minHeight: '0',
+          gap: '$0',
+          height: 'calc(100vh - 80px)',
+          margin: '0 auto',
+          backgroundColor: 'var(--vapor-color-surface-normal)',
         }}
       >
-        {renderContent()}
-      </VStack>
+        {/* 채팅방 정보 (참여자 목록 및 연결 상태) */}
+        <ChatRoomInfo room={room} connectionStatus={connectionStatus} />
 
-      {/* 입력 영역 */}
-      <ChatInput
-        onSubmit={handleMessageSubmit}
-        fileInputRef={fileInputRef}
-        disabled={connectionStatus !== 'connected'}
-        room={room}
-      />
-    </VStack>
+        {/* 메시지 영역 */}
+        <VStack
+          className="flex-1"
+          $css={{
+            overflow: 'hidden',
+            minHeight: '0',
+          }}
+        >
+          {renderContent()}
+        </VStack>
+
+        {/* 입력 영역 */}
+        <ChatInput
+          onSubmit={handleMessageSubmit}
+          fileInputRef={fileInputRef}
+          disabled={connectionStatus !== 'connected'}
+          room={room}
+        />
+      </VStack>
+    </ParticipantsProvider>
   );
 };
 
