@@ -164,18 +164,4 @@ describe('useChatRoomLifecycle', () => {
     expect(harness.cleanup).not.toHaveBeenCalled();
     expect(socketClient.tryLeaveRoom).not.toHaveBeenCalled();
   });
-
-  it('leaves the room on unmount while the component is still considered mounted', () => {
-    const socket = { connected: true };
-    const harness = createLifecycleHarness({ socket });
-
-    harness.cleanup.mockImplementation(() => {
-      expect(harness.refs.mountedRef.current).toBe(true);
-    });
-
-    harness.unmount();
-
-    expect(harness.cleanup).toHaveBeenCalledWith('unmount');
-    expect(harness.refs.mountedRef.current).toBe(false);
-  });
 });

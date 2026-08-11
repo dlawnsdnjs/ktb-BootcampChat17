@@ -50,7 +50,6 @@ export const useRoomHandling = ({
     setHasMoreMessages,
     setLoadingMessages,
     setupStarted,
-    roomEntered,
     setupSucceeded,
     setupFailed,
   } = actions;
@@ -149,17 +148,24 @@ export const useRoomHandling = ({
       }
 
       if (socketRef.current) {
-        const staleSocket = socketRef.current;
-        const joinedRoom = userRooms.current?.get(staleSocket.id);
+        const currentSocket = socketRef.current;
 
-        if (joinedRoom) {
-          socketClient.tryLeaveRoom(joinedRoom, staleSocket);
-          userRooms.current.delete(staleSocket.id);
+        if (userRooms.current?.get(currentSocket.id)) {
+          await new Promise((resolve) => {
+            socketClient.leaveRoom(
+              userRooms.current.get(currentSocket.id),
+              currentSocket
+            );
+            setTimeout(resolve, 1000);
+          });
+          userRooms.current.delete(currentSocket.id);
         }
 
-        staleSocket.removeAllListeners();
-        staleSocket.disconnect();
+        currentSocket.disconnect();
+        currentSocket.removeAllListeners();
         attachSocket(null);
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
       const socket = await socketClient.connect({
@@ -340,23 +346,11 @@ export const useRoomHandling = ({
       try {
         initializingRef.current = true;
         setupStarted();
+        // 1. Socket Setup
+        attachSocket(await setupSocket());
 
-        const [socketResult, roomResult] = await Promise.allSettled([
-          setupSocket(),
-          fetchRoomData(roomId),
-        ]);
-
-        if (socketResult.status === 'fulfilled') {
-          attachSocket(socketResult.value);
-        } else {
-          throw socketResult.reason;
-        }
-
-        if (roomResult.status === 'rejected') {
-          throw roomResult.reason;
-        }
-
-        const roomData = roomResult.value;
+        // 2. Fetch Room Data
+        const roomData = await fetchRoomData(roomId);
 
         // Ensure current user is included in participants for display
         if (currentUser && roomData.participants) {
@@ -380,7 +374,6 @@ export const useRoomHandling = ({
         // 3. Setup Event Listeners
         if (mountedRef.current) {
           setupEventListeners();
-          roomEntered(roomData);
         }
 
         // 4. Join Room and Load Messages
@@ -437,7 +430,6 @@ export const useRoomHandling = ({
     cleanup,
     setupEventListeners,
     setupStarted,
-    roomEntered,
     setupSucceeded,
     setupFailed,
     currentUser,
@@ -454,6 +446,13 @@ export const useRoomHandling = ({
       if (roomEventsUnsubscribeRef.current) {
         roomEventsUnsubscribeRef.current();
         roomEventsUnsubscribeRef.current = null;
+      }
+
+      // 언마운트 경로는 attachSocket 을 쓰지 않는다. 사라지는 컴포넌트에
+       // 소켓 교체를 통지할 구독자가 없다.
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
   }, []);
