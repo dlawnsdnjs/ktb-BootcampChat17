@@ -23,6 +23,7 @@ export const useAutoScroll = (
   const containerRef = useRef(null);
   const isNearBottomRef = useRef(true);
   const previousMessagesLengthRef = useRef(0);
+  const previousLastMessageIdRef = useRef(null);
   const isAutoScrollingRef = useRef(false);
   
   // 스크롤 복원을 위한 ref
@@ -131,22 +132,25 @@ export const useAutoScroll = (
       return;
     }
 
+    const latestMessage = messages[messages.length - 1];
+    const previousLastMessageId = previousLastMessageIdRef.current;
+
     // 이전보다 메시지가 줄었으면 (초기화 등) 무시
     if (messages.length < previousMessagesLengthRef.current) {
       previousMessagesLengthRef.current = messages.length;
+      previousLastMessageIdRef.current = latestMessage?._id ?? null;
       return;
     }
 
-    // 새로 추가된 메시지들 확인
-    const newMessages = messages.slice(previousMessagesLengthRef.current);
     previousMessagesLengthRef.current = messages.length;
+    previousLastMessageIdRef.current = latestMessage?._id ?? null;
 
-    // 새 메시지가 없으면 무시
-    if (newMessages.length === 0) return;
-
-    // 가장 최근 메시지 확인
-    const latestMessage = newMessages[newMessages.length - 1];
     if (!latestMessage) return;
+
+    // 이전 메시지가 앞에만 붙은 경우 마지막 메시지는 그대로다
+    if (previousLastMessageId !== null && latestMessage._id === previousLastMessageId) {
+      return;
+    }
 
     // 메시지 발신자 확인
     const senderId = latestMessage.sender?._id || latestMessage.sender?.id || latestMessage.sender;

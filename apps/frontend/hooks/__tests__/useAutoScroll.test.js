@@ -5,17 +5,29 @@ import { useAutoScroll } from '../useAutoScroll';
 
 const VIEWPORT = 500;
 const MESSAGE_HEIGHT = 100;
+const ME = 'me';
 
 const Harness = ({ messages, loading }) => {
-  const { containerRef } = useAutoScroll(messages, 'me', loading, 100);
+  const { containerRef } = useAutoScroll(messages, ME, loading, 100);
   return <div ref={containerRef} data-testid="scroll-container" />;
 };
 
-const makeMessages = (count) =>
-  Array.from({ length: count }, (_, i) => ({
-    _id: `m${i}`,
-    sender: { _id: 'other' },
-  }));
+const message = (id, sender = 'other') => ({ _id: id, sender: { _id: sender } });
+
+const initialMessages = (count, lastSender = 'other') =>
+  Array.from({ length: count }, (_, i) =>
+    message(`m${i}`, i === count - 1 ? lastSender : 'other')
+  );
+
+const prepend = (messages, count) => [
+  ...Array.from({ length: count }, (_, i) => message(`older${i}`)),
+  ...messages,
+];
+
+const append = (messages, sender = 'other') => [
+  ...messages,
+  message(`new${messages.length}`, sender),
+];
 
 const equipContainer = (container) => {
   let messageCount = 0;
@@ -58,30 +70,48 @@ describe('useAutoScroll', () => {
     vi.useRealTimers();
   });
 
-  const mountWithMessages = (count) => {
+  const mountWith = (messages, { settle = true } = {}) => {
     const view = render(<Harness messages={[]} loading={true} />);
     const container = equipContainer(view.getByTestId('scroll-container'));
 
-    container.setMessageCount(count);
-    view.rerender(<Harness messages={makeMessages(count)} loading={false} />);
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
+    container.setMessageCount(messages.length);
+    view.rerender(<Harness messages={messages} loading={false} />);
+
+    if (settle) {
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+    }
 
     return { view, container };
   };
 
+  const loadOlder = (view, container, messages, count) => {
+    view.rerender(<Harness messages={messages} loading={true} />);
+
+    const older = prepend(messages, count);
+    container.setMessageCount(older.length);
+    view.rerender(<Harness messages={older} loading={false} />);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    return older;
+  };
+
   it('scrolls to the bottom after the initial load', () => {
-    const { container } = mountWithMessages(30);
+    const { container } = mountWith(initialMessages(30));
 
     expect(container.scrollTop).toBe(30 * MESSAGE_HEIGHT);
   });
 
-  it('still follows new messages while the user sits at the bottom', () => {
-    const { view, container } = mountWithMessages(30);
+  it('still follows a new message while the user sits at the bottom', () => {
+    const messages = initialMessages(30);
+    const { view, container } = mountWith(messages);
 
-    container.setMessageCount(31);
-    view.rerender(<Harness messages={makeMessages(31)} loading={false} />);
+    const grown = append(messages);
+    container.setMessageCount(grown.length);
+    view.rerender(<Harness messages={grown} loading={false} />);
     act(() => {
       vi.advanceTimersByTime(500);
     });
@@ -89,12 +119,37 @@ describe('useAutoScroll', () => {
     expect(container.scrollTop).toBe(31 * MESSAGE_HEIGHT);
   });
 
-  it('keeps the reading position when the user scrolls up during the auto-scroll window', () => {
-    const view = render(<Harness messages={[]} loading={true} />);
-    const container = equipContainer(view.getByTestId('scroll-container'));
+  it('keeps the reading position when older messages are prepended', () => {
+    const messages = initialMessages(30);
+    const { view, container } = mountWith(messages);
 
-    container.setMessageCount(30);
-    view.rerender(<Harness messages={makeMessages(30)} loading={false} />);
+    container.scrollTop = 0;
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
+
+    loadOlder(view, container, messages, 30);
+
+    expect(container.scrollTop).toBe(30 * MESSAGE_HEIGHT);
+  });
+
+  it('keeps the reading position when my own message is the newest one', () => {
+    const messages = initialMessages(30, ME);
+    const { view, container } = mountWith(messages);
+
+    container.scrollTop = 0;
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
+
+    loadOlder(view, container, messages, 30);
+
+    expect(container.scrollTop).toBe(30 * MESSAGE_HEIGHT);
+  });
+
+  it('keeps the reading position when the user scrolls up during the auto-scroll window', () => {
+    const messages = initialMessages(30);
+    const { view, container } = mountWith(messages, { settle: false });
 
     act(() => {
       vi.advanceTimersByTime(100);
@@ -104,29 +159,7 @@ describe('useAutoScroll', () => {
       vi.advanceTimersByTime(400);
     });
 
-    view.rerender(<Harness messages={makeMessages(30)} loading={true} />);
-
-    container.setMessageCount(60);
-    view.rerender(<Harness messages={makeMessages(60)} loading={false} />);
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-
-    expect(container.scrollTop).toBe(30 * MESSAGE_HEIGHT);
-  });
-
-  it('keeps the reading position when older messages are prepended', () => {
-    const { view, container } = mountWithMessages(30);
-
-    container.scrollTop = 0;
-
-    view.rerender(<Harness messages={makeMessages(30)} loading={true} />);
-
-    container.setMessageCount(60);
-    view.rerender(<Harness messages={makeMessages(60)} loading={false} />);
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
+    loadOlder(view, container, messages, 30);
 
     expect(container.scrollTop).toBe(30 * MESSAGE_HEIGHT);
   });
