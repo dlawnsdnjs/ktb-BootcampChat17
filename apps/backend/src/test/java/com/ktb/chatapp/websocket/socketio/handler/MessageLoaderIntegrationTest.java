@@ -19,6 +19,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -161,6 +163,21 @@ class MessageLoaderIntegrationTest {
         // Then: 20개만 반환되고 hasMore는 false
         assertThat(response.getMessages()).hasSize(20);
         assertThat(response.isHasMore()).isFalse();
+    }
+
+    @ParameterizedTest(name = "메시지 {0}개 조회")
+    @ValueSource(ints = {0, 29, 30, 31})
+    @DisplayName("30개 페이지 경계에서 hasMore를 정확히 계산")
+    void loadMessages_shouldHandlePageBoundary(int messageCount) {
+        IntStream.range(0, messageCount)
+                .forEach(this::createAndSaveMessage);
+
+        FetchMessagesResponse response = messageLoader.loadMessages(
+                new FetchMessagesRequest(roomId, 30, null), userId);
+
+        assertThat(response.getMessages()).hasSize(Math.min(messageCount, 30));
+        assertThat(response.isHasMore()).isEqualTo(messageCount > 30);
+        verifyMessageOrder(response);
     }
 
     @Test

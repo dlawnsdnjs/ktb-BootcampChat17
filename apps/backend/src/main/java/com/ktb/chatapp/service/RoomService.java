@@ -8,11 +8,15 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,13 +38,19 @@ public class RoomService {
     public RoomsResponse getAllRooms(String name) {
 
         try {
-            // 전체 방을 조회해 최신순으로 정렬한다
-            List<RoomResponse> roomResponses = roomRepository.findAll().stream()
-                .map(room -> mapToRoomResponse(room, name))
-                .sorted(Comparator.comparing(
-                    RoomResponse::getCreatedAtDateTime,
-                    Comparator.nullsLast(Comparator.reverseOrder())))
-                .collect(Collectors.toList());
+            // DB 인덱스로 최신순 조회하고, 연관 데이터는 방 전체에 대해 일괄 로드한다.
+            List<Room> rooms = roomRepository.findAllByOrderByCreatedAtDesc();
+            Map<String, User> usersById = loadRoomUsers(rooms);
+            Map<String, Integer> recentMessageCounts = recentMessageCounter
+                    .countRecentMessages(rooms.stream().map(Room::getId).toList());
+
+            List<RoomResponse> roomResponses = rooms.stream()
+                .map(room -> mapToRoomResponse(
+                        room,
+                        name,
+                        usersById,
+                        recentMessageCounts.getOrDefault(room.getId(), 0)))
+                .toList();
 
             PageMetadata metadata = PageMetadata.builder()
                 .total(roomResponses.size())
@@ -215,5 +225,62 @@ public class RoomService {
             .isCreator(creator != null && creator.getId().equals(name))
             .recentMessageCount(recentMessageCount)
             .build();
+    }
+
+    private Map<String, User> loadRoomUsers(List<Room> rooms) {
+        Set<String> userIds = rooms.stream()
+                .map(room -> {
+                    Set<String> ids = new HashSet<>();
+                    if (room.getCreator() != null) {
+                        ids.add(room.getCreator());
+                    }
+                    if (room.getParticipantIds() != null) {
+                        ids.addAll(room.getParticipantIds());
+                    }
+                    return ids;
+                })
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        return userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+    }
+
+    private RoomResponse mapToRoomResponse(
+            Room room,
+            String name,
+            Map<String, User> usersById,
+            int recentMessageCount) {
+        User creator = usersById.get(room.getCreator());
+        List<User> participants = Optional.ofNullable(room.getParticipantIds())
+                .orElseGet(Set::of)
+                .stream()
+                .map(usersById::get)
+                .filter(Objects::nonNull)
+                .toList();
+
+        return RoomResponse.builder()
+                .id(room.getId())
+                .name(room.getName() != null ? room.getName() : "제목 없음")
+                .hasPassword(room.isHasPassword())
+                .creator(creator != null ? UserResponse.builder()
+                        .id(creator.getId())
+                        .name(creator.getName() != null ? creator.getName() : "알 수 없음")
+                        .email(creator.getEmail() != null ? creator.getEmail() : "")
+                        .build() : null)
+                .participants(participants.stream()
+                        .map(participant -> UserResponse.builder()
+                                .id(participant.getId())
+                                .name(participant.getName() != null
+                                        ? participant.getName() : "알 수 없음")
+                                .email(participant.getEmail() != null
+                                        ? participant.getEmail() : "")
+                                .build())
+                        .toList())
+                .createdAtDateTime(room.getCreatedAt())
+                .isCreator(creator != null && creator.getId().equals(name))
+                .recentMessageCount(recentMessageCount)
+                .build();
     }
 }
