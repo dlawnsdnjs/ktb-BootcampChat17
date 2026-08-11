@@ -339,11 +339,13 @@ export const withoutAuth = (WrappedComponent, { redirectAuthenticated = true } =
     const redirect = typeof router.query.redirect === 'string'
       ? router.query.redirect
       : undefined;
+    const shouldRedirect = redirectAuthenticated && isAuthenticated;
 
     useEffect(() => {
       // 최초 인증 확인이 끝난 뒤 이미 로그인한 사용자만 이동시킨다.
       // 로그인 폼에서 인증 상태가 바뀐 뒤에는 폼이 목적지로 한 번만 이동한다.
       if (
+        !redirectAuthenticated ||
         !router.isReady ||
         isLoading ||
         initialAuthCheckCompleted.current
@@ -356,7 +358,7 @@ export const withoutAuth = (WrappedComponent, { redirectAuthenticated = true } =
       if (isAuthenticated) {
         router.replace(redirect || '/chat');
       }
-    }, [isAuthenticated, isLoading, redirect, router]);
+    }, [isAuthenticated, isLoading, redirect, redirectAuthenticated, router]);
 
     // 로딩 중이거나 이미 로그인된 사용자인 경우 로딩 화면
     if (isLoading || shouldRedirect) {

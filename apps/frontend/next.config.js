@@ -13,6 +13,7 @@ const nextConfig = {
   // bundle에는 명시적으로 선언한 값만 포함되므로 FILE_STORAGE_TYPE만 노출한다.
   env: {
     FILE_STORAGE_TYPE: process.env.FILE_STORAGE_TYPE || 'local'
+  },
   // 로그인 화면의 공식 경로는 E2E와 기존 사용자 흐름이 사용하는 루트(`/`)다.
   // 이전 `/login` 진입도 같은 화면으로 수렴시켜 로그인 실패 시 URL 계약을 유지한다.
   async redirects() {

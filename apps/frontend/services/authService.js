@@ -101,8 +101,13 @@ class AuthService {
   }
 
   async register(userData) {
+    let response;
+
     try {
-      const response = await api.post('/api/auth/register', userData);
+      response = await measureApiRequest(
+        API_REQUEST_METRICS.REGISTER,
+        () => api.post('/api/auth/register', userData)
+      );
 
       if (response.data?.success && response.data?.token && response.data?.user) {
         return {
@@ -118,22 +123,11 @@ class AuthService {
       if (response.data?.success) {
         return response.data;
       }
-    let response;
 
-    try {
-      response = await measureApiRequest(
-        API_REQUEST_METRICS.REGISTER,
-        () => api.post('/api/auth/register', userData)
-      );
+      throw new Error(response.data?.message || '회원가입에 실패했습니다.');
     } catch (error) {
       throw this._handleError(error);
     }
-
-    if (response.data?.success) {
-      return response.data;
-    }
-
-    throw new Error(response.data?.message || '회원가입에 실패했습니다.');
   }
   
   /**
