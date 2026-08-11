@@ -24,6 +24,9 @@ public class MessageReadStatusService {
     /**
      * 메시지 읽음 상태 업데이트
      *
+     * 아직 해당 사용자가 읽지 않은 메시지만 골라 readers 에 한 번에 push 한다.
+     * 메시지 수와 무관하게 DB 왕복은 1회다.
+     *
      * @param messageIds 읽음 상태를 업데이트할 메시지 리스트
      * @param userId 읽은 사용자 ID
      */
@@ -37,14 +40,14 @@ public class MessageReadStatusService {
                 .readAt(LocalDateTime.now())
                 .build();
 
-        try {
-            Query query = Query.query(Criteria.where("_id").in(messageIds)
-                    .and("readers.userId").ne(userId));
-            Update update = new Update().push("readers", readerInfo);
+        Query query = Query.query(Criteria.where("_id").in(messageIds)
+                .and("readers.userId").ne(userId));
+        Update update = new Update().push("readers", readerInfo);
 
+        try {
             var result = mongoTemplate.updateMulti(query, update, Message.class);
-            log.debug("Read status updated for {} messages by user {}",
-                    result.getModifiedCount(), userId);
+            log.debug("Read status updated for {} of {} messages by user {}",
+                    result.getModifiedCount(), messageIds.size(), userId);
         } catch (Exception e) {
             log.error("Read status update error for user {}", userId, e);
         }

@@ -79,6 +79,23 @@ describe('socketService', () => {
     expect(socket.on).not.toHaveBeenCalledWith('reconnect_failed', expect.any(Function));
   });
 
+  it('notifies global session-ended subscribers and supports unsubscribe', () => {
+    const socket = createSocket({ connected: true });
+    const listener = vi.fn();
+    io.mockReturnValue(socket);
+    const unsubscribe = service.subscribeSessionEnded(listener);
+
+    service.connect().catch(() => {});
+    const sessionEnded = getSocketHandler(socket, 'session_ended');
+    sessionEnded({ reason: 'duplicate_login' });
+
+    expect(listener).toHaveBeenCalledWith({ reason: 'duplicate_login' });
+
+    unsubscribe();
+    sessionEnded({ reason: 'duplicate_login' });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('does not let a stale manager reconnect failure clear a newer socket', async () => {
     const failedSocket = createSocket();
     const liveSocket = createSocket({ connected: true });
@@ -214,5 +231,43 @@ describe('socketService', () => {
     expect(socket.emit).toHaveBeenCalledWith('leaveRoom', 'room-1');
     expect(service.trySendOn(socket, 'leaveRoom', 'room-1')).toBe(true);
     expect(socket.emit).toHaveBeenCalledTimes(2);
+  });
+
+  describe('reconnection backoff', () => {
+    const getConnectOptions = () => {
+      io.mockReturnValue(createSocket());
+      service.connect().catch(() => {});
+
+      return io.mock.calls.at(-1)[1];
+    };
+
+    it('spreads retries over a window wide enough to avoid a reconnect stampede', () => {
+      const options = getConnectOptions();
+
+      expect(options.reconnectionDelayMax).toBe(30000);
+      expect(options.randomizationFactor).toBe(1);
+    });
+
+    it('keeps reconnection enabled with the attempt budget unchanged', () => {
+      const options = getConnectOptions();
+
+      expect(options.reconnection).toBe(true);
+      expect(options.reconnectionAttempts).toBe(service.maxReconnectAttempts);
+      expect(options.reconnectionDelay).toBe(service.retryDelay);
+    });
+
+    it('produces a retry schedule that widens on every attempt', () => {
+      const { reconnectionDelay, reconnectionDelayMax, randomizationFactor } =
+        getConnectOptions();
+
+      const upperBoundAt = (attempt) =>
+        Math.min(reconnectionDelay * 2 ** attempt, reconnectionDelayMax) *
+        (1 + randomizationFactor);
+
+      const bounds = [0, 1, 2, 3, 4].map(upperBoundAt);
+
+      expect(bounds).toEqual([2000, 4000, 8000, 16000, 32000]);
+      expect(bounds.at(-1)).toBeGreaterThan(17000);
+    });
   });
 });

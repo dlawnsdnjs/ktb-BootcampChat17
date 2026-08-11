@@ -1,8 +1,32 @@
-uploads/*
-.env
+# Dependencies / build output
+node_modules/
+.next/
+target/
 
-# Eclipse JDT / LSP 생성 파일
+# Runtime uploads
+uploads/*
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# IDE / OS
+.idea/
+.DS_Store
 .classpath
 .project
 .factorypath
 .settings/
+
+# Maven Wrapper downloaded binary
+apps/backend/.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java / Maven outputs
+target/
+*.class

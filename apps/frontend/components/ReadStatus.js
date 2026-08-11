@@ -2,10 +2,12 @@ import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react'
 import { ConfirmOutlineIcon } from '@vapor-ui/icons';
 import { Text, HStack } from '@vapor-ui/core';
 import socketClient from '@/lib/socket/socketClient';
+import readReceiptBatcher from '@/lib/socket/readReceiptBatcher';
+import { useRoomId } from '@/hooks/useRoomId';
+import { useParticipants } from '@/features/chat/room/ParticipantsContext';
 
-const ReadStatus = ({ 
+const ReadStatus = ({
   messageType = 'text',
-  participants = [],
   readers = [],
   className = '',
   messageId = null,
@@ -15,6 +17,8 @@ const ReadStatus = ({
   const [hasMarkedAsRead, setHasMarkedAsRead] = useState(false);
   const statusRef = useRef(null);
   const observerRef = useRef(null);
+  const roomId = useRoomId();
+  const participants = useParticipants();
 
   // 읽지 않은 참여자 명단 생성 
   const unreadParticipants = useMemo(() => {
@@ -37,22 +41,15 @@ const ReadStatus = ({
   }, [unreadParticipants.length, messageType]);
 
   // 메시지를 읽음으로 표시하는 함수
-  const markMessageAsRead = useCallback(async () => {
-    if (!messageId || !currentUserId || hasMarkedAsRead || 
+  const markMessageAsRead = useCallback(() => {
+    if (!messageId || !currentUserId || hasMarkedAsRead ||
         messageType === 'system' || !socketClient.canSend()) {
       return;
     }
 
-    try {
-      // Socket.IO를 통해 서버에 읽음 상태 전송
-      socketClient.markMessagesAsRead([messageId]);
-
-      setHasMarkedAsRead(true);
-
-    } catch (error) {
-      console.error('Error marking message as read:', error);
-    }
-  }, [messageId, currentUserId, hasMarkedAsRead, messageType]);
+    readReceiptBatcher.queue(messageId, roomId);
+    setHasMarkedAsRead(true);
+  }, [messageId, currentUserId, hasMarkedAsRead, messageType, roomId]);
 
   // Intersection Observer 설정
   useEffect(() => {

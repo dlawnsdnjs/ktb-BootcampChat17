@@ -13,6 +13,16 @@ const nextConfig = {
   // bundle에는 명시적으로 선언한 값만 포함되므로 FILE_STORAGE_TYPE만 노출한다.
   env: {
     FILE_STORAGE_TYPE: process.env.FILE_STORAGE_TYPE || 'local'
+  // 로그인 화면의 공식 경로는 E2E와 기존 사용자 흐름이 사용하는 루트(`/`)다.
+  // 이전 `/login` 진입도 같은 화면으로 수렴시켜 로그인 실패 시 URL 계약을 유지한다.
+  async redirects() {
+    return [
+      {
+        source: '/login',
+        destination: '/',
+        permanent: false,
+      },
+    ];
   },
   // 같은 LAN의 다른 기기에서 dev 서버(/_next 자산·HMR)에 접근하도록 허용한다. dev 전용이고
   // localhost는 Next가 항상 허용하므로 이 목록이 로컬 접속에 영향을 주지 않는다.

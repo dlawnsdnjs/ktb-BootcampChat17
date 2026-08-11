@@ -92,7 +92,6 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
         socketRef.current.off('participantsUpdate');
         socketRef.current.off('messagesRead');
         socketRef.current.off('messageReactionUpdate');
-        socketRef.current.off('session_ended');
         socketRef.current.off('error');
       }
 
@@ -144,7 +143,7 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
     handleReactionAdd,
     handleReactionRemove,
     handleReactionUpdate,
-  } = useReactionHandling({ currentUser, messages, setMessages });
+  } = useReactionHandling({ currentUser, setMessages });
 
   const {
     connectionStatus: derivedConnectionStatus,

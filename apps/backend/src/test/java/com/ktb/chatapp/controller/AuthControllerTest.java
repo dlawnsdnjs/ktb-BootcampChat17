@@ -53,7 +53,7 @@ public class AuthControllerTest {
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setName("Test User");
         registerRequest.setEmail(email);
-        registerRequest.setPassword("password");
+        registerRequest.setPassword("Password123!");
 
         mockMvc.perform(post("/api/auth/register")
                         .with(csrf())
@@ -100,7 +100,7 @@ public class AuthControllerTest {
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setName("Test User");
         registerRequest.setEmail(email);
-        registerRequest.setPassword("password");
+        registerRequest.setPassword("Password123!");
 
         mockMvc.perform(post("/api/auth/register")
                         .with(csrf())
@@ -108,7 +108,7 @@ public class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(registerRequest)))
                 .andExpect(status().isCreated());
 
-        LoginRequest loginRequest = new LoginRequest(email, "password");
+        LoginRequest loginRequest = new LoginRequest(email, "Password123!");
 
         mockMvc.perform(post("/api/auth/login")
                         .with(csrf())

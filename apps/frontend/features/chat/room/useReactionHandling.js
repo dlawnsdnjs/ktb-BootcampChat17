@@ -1,11 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Toast } from '@/components/Toast';
 import socketClient from '@/lib/socket/socketClient';
 
-export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
-  const [pendingReactions] = useState(new Map());
+export const useReactionHandling = ({ currentUser, setMessages }) => {
+  const currentUserId = currentUser?.id;
+
+  const rollbackReactions = useCallback((messageId, previousReactions) => {
+    if (previousReactions === null) {
+      return;
+    }
+
+    setMessages(prevMessages =>
+      prevMessages.map(msg =>
+        msg._id === messageId ? { ...msg, reactions: previousReactions } : msg
+      )
+    );
+  }, [setMessages]);
 
   const handleReactionAdd = useCallback(async (messageId, reaction) => {
+    let previousReactions = null;
+
     try {
       if (!socketClient.canSend()) {
         throw new Error('Socket not connected');
@@ -14,22 +28,26 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       // 낙관적 업데이트
       setMessages(prevMessages =>
         prevMessages.map(msg => {
-          if (msg._id === messageId) {
-            const currentReactions = msg.reactions || {};
-            const currentUsers = currentReactions[reaction] || [];
-
-            // 중복 추가 방지
-            if (!currentUsers.includes(currentUser.id)) {
-              return {
-                ...msg,
-                reactions: {
-                  ...currentReactions,
-                  [reaction]: [...currentUsers, currentUser.id]
-                }
-              };
-            }
+          if (msg._id !== messageId) {
+            return msg;
           }
-          return msg;
+
+          const currentReactions = msg.reactions || {};
+          previousReactions = currentReactions;
+          const currentUsers = currentReactions[reaction] || [];
+
+          // 중복 추가 방지
+          if (currentUsers.includes(currentUserId)) {
+            return msg;
+          }
+
+          return {
+            ...msg,
+            reactions: {
+              ...currentReactions,
+              [reaction]: [...currentUsers, currentUserId]
+            }
+          };
         })
       );
 
@@ -40,17 +58,13 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       Toast.error('리액션 추가에 실패했습니다.');
 
       // 실패 시 롤백
-      setMessages(prevMessages =>
-        prevMessages.map(msg =>
-          msg._id === messageId ?
-          { ...msg, reactions: messages.find(m => m._id === messageId)?.reactions || {} } :
-          msg
-        )
-      );
+      rollbackReactions(messageId, previousReactions);
     }
-  }, [currentUser, messages, setMessages]);
+  }, [currentUserId, setMessages, rollbackReactions]);
 
   const handleReactionRemove = useCallback(async (messageId, reaction) => {
+    let previousReactions = null;
+
     try {
       if (!socketClient.canSend()) {
         throw new Error('Socket not connected');
@@ -59,18 +73,21 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       // 낙관적 업데이트
       setMessages(prevMessages =>
         prevMessages.map(msg => {
-          if (msg._id === messageId) {
-            const currentReactions = msg.reactions || {};
-            const currentUsers = currentReactions[reaction] || [];
-            return {
-              ...msg,
-              reactions: {
-                ...currentReactions,
-                [reaction]: currentUsers.filter(id => id !== currentUser.id)
-              }
-            };
+          if (msg._id !== messageId) {
+            return msg;
           }
-          return msg;
+
+          const currentReactions = msg.reactions || {};
+          previousReactions = currentReactions;
+          const currentUsers = currentReactions[reaction] || [];
+
+          return {
+            ...msg,
+            reactions: {
+              ...currentReactions,
+              [reaction]: currentUsers.filter(id => id !== currentUserId)
+            }
+          };
         })
       );
 
@@ -81,15 +98,9 @@ export const useReactionHandling = ({ currentUser, messages, setMessages }) => {
       Toast.error('리액션 제거에 실패했습니다.');
 
       // 실패 시 롤백
-      setMessages(prevMessages =>
-        prevMessages.map(msg =>
-          msg._id === messageId ?
-          { ...msg, reactions: messages.find(m => m._id === messageId)?.reactions || {} } :
-          msg
-        )
-      );
+      rollbackReactions(messageId, previousReactions);
     }
-  }, [currentUser, messages, setMessages]);
+  }, [currentUserId, setMessages, rollbackReactions]);
 
   const handleReactionUpdate = useCallback(({ messageId, reactions }) => {
     setMessages(prevMessages =>

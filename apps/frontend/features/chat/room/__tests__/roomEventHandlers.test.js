@@ -100,9 +100,6 @@ describe('roomEventHandlers', () => {
       setLoadingMessages: vi.fn(),
       setError: vi.fn(),
       setHasMoreMessages: vi.fn(),
-      cleanup: vi.fn(),
-      logout: vi.fn(),
-      onReplace: vi.fn(),
       handleReactionUpdate: vi.fn(),
       showRejectedMessage: vi.fn(),
     });
@@ -123,9 +120,6 @@ describe('roomEventHandlers', () => {
     const setError = vi.fn();
     const setHasMoreMessages = vi.fn();
     const processMessages = vi.fn();
-    const cleanup = vi.fn();
-    const logout = vi.fn();
-    const onReplace = vi.fn();
     const handleReactionUpdate = vi.fn();
     const showRejectedMessage = vi.fn();
 
@@ -140,9 +134,6 @@ describe('roomEventHandlers', () => {
       setLoadingMessages,
       setError,
       setHasMoreMessages,
-      cleanup,
-      logout,
-      onReplace,
       handleReactionUpdate,
       showRejectedMessage,
     });
@@ -156,7 +147,6 @@ describe('roomEventHandlers', () => {
     handlers.onMessage({ _id: 'message-1' });
     handlers.onPreviousMessagesLoaded({ messages: [{ _id: 'message-2' }], hasMore: true });
     handlers.onMessageReactionUpdate({ messageId: 'message-1' });
-    handlers.onSessionEnded();
     handlers.onError({ code: 'MESSAGE_REJECTED', message: 'blocked' });
 
     expect(setRoom).toHaveBeenCalledWith(expect.any(Function));
@@ -164,9 +154,6 @@ describe('roomEventHandlers', () => {
     expect(processMessages).toHaveBeenCalledWith([{ _id: 'message-2' }], true, true);
     expect(setLoadingMessages).toHaveBeenCalledWith(false);
     expect(handleReactionUpdate).toHaveBeenCalledWith({ messageId: 'message-1' });
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(logout).toHaveBeenCalledTimes(1);
-    expect(onReplace).toHaveBeenCalledWith('/?error=session_expired');
     expect(showRejectedMessage).toHaveBeenCalledWith('blocked');
   });
 });

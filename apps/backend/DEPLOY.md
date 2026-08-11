@@ -116,6 +116,10 @@ tail -f logs/app.log
    MONGO_URI=mongodb://localhost:27017/bootcamp-chat
    REDIS_HOST=localhost
    REDIS_PORT=6379
+   REDIS_USERNAME=
+   REDIS_PASSWORD=
+   REDIS_SSL=false
+   SOCKETIO_STORE_TYPE=redis
 
    # 다중 Backend 공용 파일 저장소
    FILE_STORAGE_TYPE=s3

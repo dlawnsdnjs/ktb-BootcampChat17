@@ -3,7 +3,11 @@
 
 # Build outputs
 **/.next/
+**/out/
+**/dist/
+**/coverage/
 **/target/
+**/*.class
 
 # Local environment files
 **/.env
@@ -16,6 +20,7 @@
 **/.idea/
 **/*.iml
 .DS_Store
+*.log
 
 # Maven Wrapper downloaded cache
 **/.mvn/wrapper/maven-wrapper.jar

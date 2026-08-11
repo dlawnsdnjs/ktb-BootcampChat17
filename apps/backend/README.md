@@ -91,7 +91,11 @@ make verify-java
 | `MONGO_URI` | ✅ | 없음 | MongoDB 연결 문자열              |
 | `REDIS_HOST` | ✅ | 없음 | Redis 호스트                    |
 | `REDIS_PORT` | ✅ | 없음 | Redis 포트                      |
-| `FILE_STORAGE_TYPE` | ❌ | `local` | 파일 저장소와 업로드 방식. `local`은 multipart, `s3`는 Presigned PUT |
+| `REDIS_USERNAME` | ❌ | 없음 | Redis ACL 사용자명 |
+| `REDIS_PASSWORD` | ❌ | 없음 | Redis 인증 비밀번호 |
+| `REDIS_SSL` | ❌ | `false` | Redisson 연결에 TLS(`rediss://`) 사용 여부 |
+| `SOCKETIO_STORE_TYPE` | ❌ | dev/prod `redis`, 기본·테스트 `memory` | Socket.IO 내부 Store 선택 |
+| `FILE_STORAGE_TYPE` | ❌ | `local` | 파일 저장소. 로컬 개발은 `local`, 다중 BE 운영은 `s3` |
 | `FILE_UPLOAD_DIR` | ❌ | `./uploads` | `local` 모드의 업로드 경로 |
 | `S3_BUCKET_NAME` | S3 사용 시 ✅ | 없음 | 파일을 저장할 비공개 S3 버킷명 |
 | `AWS_REGION` | S3 사용 시 ✅ | 없음 | S3 버킷 리전 |

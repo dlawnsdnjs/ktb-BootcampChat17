@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { ErrorCircleIcon, CheckCircleIcon } from '@vapor-ui/icons';
 import {
@@ -13,6 +13,16 @@ import {
     VStack,
 } from '@vapor-ui/core';
 import { useAuth, withoutAuth } from '@/contexts/AuthContext';
+import { measureDuration, UI_METRICS } from '@/lib/api/requestMetrics';
+import {
+  EMAIL_PATTERN,
+  NAME_MIN_LENGTH,
+  PASSWORD_HINT,
+  PASSWORD_PATTERN,
+  REGISTER_MESSAGES,
+} from '@/lib/auth/registerRules';
+
+const LOGIN_PATH_AFTER_REGISTER = '/?registered=1';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -24,44 +34,41 @@ const Register = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const router = useRouter();
   const { register: registerContext } = useAuth();
 
-  const validateForm = () => {
-    // 비밀번호 일치 확인만 추가 검증 (나머지는 HTML5 폼 검증)
-    if (formData.password !== formData.confirmPassword) {
-      setError('비밀번호가 일치하지 않습니다.');
-      return false;
-    }
-
-    return true;
-  };
+  const trimmedName = formData.name.trim();
+  const nameTooShort = trimmedName.length > 0 && trimmedName.length < NAME_MIN_LENGTH;
+  const passwordMismatch =
+    formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      return;
-    }
+    if (submittingRef.current) return;
 
+    if (formData.password !== formData.confirmPassword || nameTooShort) return;
+
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
-    setSuccess(false);
 
     try {
-      const { name, email, password } = formData;
-      await registerContext({ name, email, password });
-      
-      setSuccess(true);
-      setLoading(false);
+      await registerContext({
+        name: trimmedName,
+        email: formData.email.trim(),
+        password: formData.password,
+      });
 
-      // 회원가입 직후 인증 정보가 저장된 상태를 먼저 확정한다.
-      // 외부 시나리오가 다음 경로로 직접 이동할 수 있으므로 즉시 라우팅하지 않는다.
-      setTimeout(() => {
-        router.push('/chat');
-      }, 1500);
+      setSuccess(true);
+
+      await measureDuration(UI_METRICS.REGISTER_REDIRECT, () =>
+        router.replace(LOGIN_PATH_AFTER_REGISTER)
+      );
     } catch (err) {
       setError(err.message || '회원가입 처리 중 오류가 발생했습니다.');
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -83,7 +90,7 @@ const Register = () => {
         </div>
 
         {error && (
-          <Callout.Root colorPalette="warning" data-testid="register-error-message">
+          <Callout.Root colorPalette="warning" role="alert" data-testid="register-error-message">
             <Callout.Icon>
               <ErrorCircleIcon />
             </Callout.Icon>
@@ -92,11 +99,11 @@ const Register = () => {
         )}
 
         {success && (
-          <Callout.Root colorPalette="success" data-testid="register-success-message">
+          <Callout.Root colorPalette="success" role="status" data-testid="register-success-message">
             <Callout.Icon>
               <CheckCircleIcon />
             </Callout.Icon>
-            가입과 로그인이 완료되었습니다.
+            가입이 완료되었습니다. 로그인 화면으로 이동합니다.
           </Callout.Root>
         )}
 
@@ -121,7 +128,10 @@ const Register = () => {
                   data-testid="register-name-input"
                 />
               </Box>
-              <Field.Error match="valueMissing">이름을 입력해주세요.</Field.Error>
+              <Field.Error match="valueMissing">{REGISTER_MESSAGES.nameRequired}</Field.Error>
+              <Field.Error match={nameTooShort} data-testid="register-name-too-short">
+                {REGISTER_MESSAGES.nameTooShort}
+              </Field.Error>
             </Field.Root>
 
             <Field.Root>
@@ -136,6 +146,7 @@ const Register = () => {
                   size="lg"
                   type="email"
                   required
+                  pattern={EMAIL_PATTERN}
                   disabled={loading}
                   value={formData.email}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, email: value }))}
@@ -143,8 +154,9 @@ const Register = () => {
                   data-testid="register-email-input"
                 />
               </Box>
-              <Field.Error match="valueMissing">이메일을 입력해주세요.</Field.Error>
-              <Field.Error match="typeMismatch">유효한 이메일 형식이 아닙니다.</Field.Error>
+              <Field.Error match="valueMissing">{REGISTER_MESSAGES.emailRequired}</Field.Error>
+              <Field.Error match="typeMismatch">{REGISTER_MESSAGES.emailInvalid}</Field.Error>
+              <Field.Error match="patternMismatch">{REGISTER_MESSAGES.emailInvalid}</Field.Error>
             </Field.Root>
 
             <Field.Root>
@@ -159,17 +171,17 @@ const Register = () => {
                   size="lg"
                   type="password"
                   required
+                  pattern={PASSWORD_PATTERN}
                   disabled={loading}
                   value={formData.password}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, password: value }))}
                   placeholder="비밀번호를 입력하세요"
-                  pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,16}"
                   data-testid="register-password-input"
                 />
               </Box>
-              <Field.Description>8~16자, 대소문자 영문, 숫자, 특수문자 포함</Field.Description>
-              <Field.Error match="valueMissing">비밀번호를 입력해주세요.</Field.Error>
-              <Field.Error match="patternMismatch">유효한 비밀번호 형식이 아닙니다.</Field.Error>
+              <Field.Description>{PASSWORD_HINT}</Field.Description>
+              <Field.Error match="valueMissing">{REGISTER_MESSAGES.passwordRequired}</Field.Error>
+              <Field.Error match="patternMismatch">{REGISTER_MESSAGES.passwordRule}</Field.Error>
             </Field.Root>
 
             <Field.Root>
@@ -191,14 +203,19 @@ const Register = () => {
                   data-testid="register-password-confirm-input"
                 />
               </Box>
-              <Field.Error match="valueMissing">비밀번호 확인을 입력해주세요.</Field.Error>
+              <Field.Error match="valueMissing">
+                {REGISTER_MESSAGES.passwordConfirmRequired}
+              </Field.Error>
+              <Field.Error match={passwordMismatch} data-testid="register-password-mismatch">
+                {REGISTER_MESSAGES.passwordMismatch}
+              </Field.Error>
             </Field.Root>
           </VStack>
 
           <Button
             type="submit"
             size="lg"
-            disabled={loading}
+            disabled={loading || passwordMismatch || nameTooShort}
             data-testid="register-submit-button"
           >
             {loading ? '회원가입 중...' : '회원가입'}
