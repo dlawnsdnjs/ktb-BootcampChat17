@@ -94,7 +94,7 @@ public class SocketIOConfig {
     
     // 인메모리 저장소, 단일 노드 환경에서만 사용
     @Bean
-    @ConditionalOnProperty(name = "socketio.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "chat.store.type", havingValue = "memory", matchIfMissing = true)
     public ChatDataStore chatDataStore() {
         return new LocalChatDataStore();
     }

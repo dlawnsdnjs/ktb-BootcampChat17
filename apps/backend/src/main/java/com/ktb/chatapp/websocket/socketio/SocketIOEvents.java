@@ -124,12 +124,6 @@ public final class SocketIOEvents {
     public static final String MESSAGE_REACTION_UPDATE = "messageReactionUpdate";
 
     /**
-     * 중복 로그인 감지
-     * Payload: { type, deviceInfo, ipAddress, timestamp }
-     */
-    public static final String DUPLICATE_LOGIN = "duplicate_login";
-
-    /**
      * 세션 종료 알림
      * Payload: { reason, message }
      */

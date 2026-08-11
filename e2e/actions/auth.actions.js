@@ -11,7 +11,6 @@ async function loginAction(page, credentials, waitForRedirect = true) {
   await page.getByTestId('login-email-input').fill(credentials.email);
   await page.getByTestId('login-password-input').fill(credentials.password);
   await page.getByTestId('login-submit-button').click();
-  await page.waitForTimeout(1000); // 잠시 대기
   if (waitForRedirect) {
     await page.waitForURL(`${BASE_URL}/chat`);
   }
@@ -29,7 +28,10 @@ async function registerAction(page, userData) {
   await page.getByTestId('register-password-confirm-input').fill(userData.passwordConfirm);
   await page.getByTestId('register-name-input').fill(userData.name);
   await page.getByTestId('register-submit-button').click();
-  await page.waitForTimeout(1000); // 잠시 대기
+  await Promise.any([
+    page.waitForURL((url) => url.searchParams.get('registered') === '1', { timeout: 10000 }),
+    page.getByTestId('register-error-message').waitFor({ state: 'visible', timeout: 10000 }),
+  ]);
 }
 
 /**

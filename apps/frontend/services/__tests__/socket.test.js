@@ -79,6 +79,23 @@ describe('socketService', () => {
     expect(socket.on).not.toHaveBeenCalledWith('reconnect_failed', expect.any(Function));
   });
 
+  it('notifies global session-ended subscribers and supports unsubscribe', () => {
+    const socket = createSocket({ connected: true });
+    const listener = vi.fn();
+    io.mockReturnValue(socket);
+    const unsubscribe = service.subscribeSessionEnded(listener);
+
+    service.connect().catch(() => {});
+    const sessionEnded = getSocketHandler(socket, 'session_ended');
+    sessionEnded({ reason: 'duplicate_login' });
+
+    expect(listener).toHaveBeenCalledWith({ reason: 'duplicate_login' });
+
+    unsubscribe();
+    sessionEnded({ reason: 'duplicate_login' });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('does not let a stale manager reconnect failure clear a newer socket', async () => {
     const failedSocket = createSocket();
     const liveSocket = createSocket({ connected: true });

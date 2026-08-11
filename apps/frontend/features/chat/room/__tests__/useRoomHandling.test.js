@@ -256,7 +256,6 @@ describe('useRoomHandling', () => {
         onMessage: expect.any(Function),
         onPreviousMessagesLoaded: expect.any(Function),
         onMessageReactionUpdate: expect.any(Function),
-        onSessionEnded: expect.any(Function),
         onError: expect.any(Function),
       }),
     );

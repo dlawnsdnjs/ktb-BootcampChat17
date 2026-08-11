@@ -19,6 +19,7 @@ export class SocketService {
     this.reconnectionDelayMax = 30000;
     this.randomizationFactor = 1.0;
     this.connected = false;
+    this.sessionEndedListeners = new Set();
   }
 
   async connect(options = {}) {
@@ -142,15 +143,18 @@ export class SocketService {
       }
     });
 
-    // duplicate_login 이벤트 수신
-    // type: 'new_login_attempt' - 새로 로그인한 디바이스
-    // type: 'existing_session' - 기존 세션이 있던 디바이스 (다른 곳에서 로그인함)
-    socket.on('duplicate_login', (data) => {
+    socket.on('session_ended', (data) => {
       if (socket !== this.socket) {
         return;
       }
 
-      // TODO: 향후 중복 로그인 처리 필요 시 AuthContext에서 구현
+      for (const listener of this.sessionEndedListeners) {
+        try {
+          listener(data);
+        } catch (error) {
+          console.error('Session ended listener error:', error);
+        }
+      }
     });
 
     socket.on('error', (error) => {
@@ -238,6 +242,15 @@ export class SocketService {
     if (this.socket) {
       this.cleanupSocket(this.socket);
     }
+  }
+
+  subscribeSessionEnded(listener) {
+    if (typeof listener !== 'function') {
+      throw new TypeError('Session ended listener must be a function');
+    }
+
+    this.sessionEndedListeners.add(listener);
+    return () => this.sessionEndedListeners.delete(listener);
   }
 
   handleSocketError(error) {
