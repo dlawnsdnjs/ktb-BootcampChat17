@@ -13,11 +13,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 /**
  * 프로필 이미지만을 익명에게 서빙한다 — 앱 전체에서 인가 없이 읽히는 유일한 파일 표면이다.
@@ -29,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/files/profiles")
 public class ProfileImageController {
 
+    private static final Duration PROFILE_URL_TTL = Duration.ofMinutes(5);
+
     private final StoragePort storagePort;
 
     @Operation(summary = "프로필 이미지 조회", description = "프로필 이미지를 반환합니다. 인증이 필요하지 않습니다.")
@@ -39,14 +45,23 @@ public class ProfileImageController {
     })
     @SecurityRequirement(name = "")
     @GetMapping("/{filename:.+}")
-    public ResponseEntity<Resource> getProfileImage(
+    public ResponseEntity<?> getProfileImage(
             @Parameter(description = "조회할 프로필 이미지 파일명") @PathVariable String filename) {
 
         if (FileUtil.containsPathTraversal(filename)) {
             return ResponseEntity.badRequest().build();
         }
 
-        return storagePort.open(StorageKey.profile(filename))
+        String key = StorageKey.profile(filename);
+        var offloadUrl = storagePort.offloadUrl(
+                key,
+                PROFILE_URL_TTL,
+                ContentDisposition.inline().filename(filename, StandardCharsets.UTF_8).build());
+        if (offloadUrl.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(offloadUrl.get()).build();
+        }
+
+        return storagePort.open(key)
                 .map(resource -> ResponseEntity.ok()
                         .contentType(contentTypeOf(filename))
                         .body(resource))

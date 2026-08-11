@@ -3,6 +3,9 @@ node_modules/
 .next/
 target/
 
+# Runtime uploads
+uploads/*
+
 # Local environment files
 .env
 .env.*
@@ -12,6 +15,10 @@ target/
 # IDE / OS
 .idea/
 .DS_Store
+.classpath
+.project
+.factorypath
+.settings/
 
 # Maven Wrapper downloaded binary
 apps/backend/.mvn/wrapper/maven-wrapper.jar

@@ -8,8 +8,12 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.FileRepository;
 import com.ktb.chatapp.service.FileUrl;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,6 +37,38 @@ public class MessageResponseMapper {
      * @return MessageResponse DTO
      */
     public MessageResponse mapToMessageResponse(Message message, User sender) {
+        FileResponse file = Optional.ofNullable(message.getFileId())
+                .flatMap(fileRepository::findById)
+                .map(this::mapFile)
+                .orElse(null);
+        return mapToMessageResponse(message, sender, file);
+    }
+
+    public List<MessageResponse> mapToMessageResponses(
+            List<Message> messages,
+            Map<String, User> usersById) {
+        Collection<String> fileIds = messages.stream()
+                .map(Message::getFileId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+
+        Map<String, FileResponse> filesById = fileRepository.findAllById(fileIds).stream()
+                .collect(Collectors.toMap(
+                        com.ktb.chatapp.model.File::getId,
+                        this::mapFile));
+
+        return messages.stream()
+                .map(message -> mapToMessageResponse(
+                        message,
+                        usersById.get(message.getSenderId()),
+                        filesById.get(message.getFileId())))
+                .toList();
+    }
+
+    private MessageResponse mapToMessageResponse(
+            Message message,
+            User sender,
+            FileResponse file) {
         MessageResponse.MessageResponseBuilder builder = MessageResponse.builder()
                 .id(message.getId())
                 .content(message.getContent())
@@ -55,16 +91,7 @@ public class MessageResponseMapper {
         }
 
         // 파일 정보 설정
-        Optional.ofNullable(message.getFileId())
-                .flatMap(fileRepository::findById)
-                .map(file -> FileResponse.builder()
-                        .id(file.getId())
-                        .filename(file.getFilename())
-                        .originalname(file.getOriginalname())
-                        .mimetype(file.getMimetype())
-                        .size(file.getSize())
-                        .build())
-                .ifPresent(builder::file);
+        Optional.ofNullable(file).ifPresent(builder::file);
 
         // 메타데이터 설정
         if (message.getMetadata() != null) {
@@ -72,5 +99,15 @@ public class MessageResponseMapper {
         }
 
         return builder.build();
+    }
+
+    private FileResponse mapFile(com.ktb.chatapp.model.File file) {
+        return FileResponse.builder()
+                .id(file.getId())
+                .filename(file.getFilename())
+                .originalname(file.getOriginalname())
+                .mimetype(file.getMimetype())
+                .size(file.getSize())
+                .build();
     }
 }

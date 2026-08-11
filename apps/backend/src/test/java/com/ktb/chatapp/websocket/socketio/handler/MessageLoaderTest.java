@@ -115,6 +115,9 @@ class MessageLoaderTest {
         // Then: 결과는 오름차순으로 정렬되어야 함
         assertThat(result.getMessages()).hasSize(30);
         assertThat(result.isHasMore()).isTrue();
+        verify(userRepository).findAllById(anySet());
+        verify(userRepository, never()).findById(anyString());
+        verify(fileRepository).findAllById(anySet());
         
         // 시간순 정렬 확인 (오름차순: 오래된 것 → 최신 것)
         // [50시간 전, 49시간 전, ..., 21시간 전]

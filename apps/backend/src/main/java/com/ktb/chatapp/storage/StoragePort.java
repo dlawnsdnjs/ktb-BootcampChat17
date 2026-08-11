@@ -11,6 +11,20 @@ public interface StoragePort {
     StoredObject put(InputStream content, String key, String contentType, long size);
     Optional<Resource> open(String key);
     void delete(String key);
+
+    default Optional<PresignedUpload> presignUpload(
+            String key, String contentType, Duration ttl) {
+        return Optional.empty();
+    }
+
+    default Optional<StoredObjectMetadata> metadata(String key) {
+        return Optional.empty();
+    }
+
+    default boolean markUploadCompleted(String key) {
+        return false;
+    }
+
     /**
      * 오프로딩 확장 지점. 지원하지 않으면 앱이 바이트를 중계한다.
      *
