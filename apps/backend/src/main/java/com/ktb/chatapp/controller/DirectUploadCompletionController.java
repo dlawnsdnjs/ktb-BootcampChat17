@@ -4,7 +4,7 @@ import com.ktb.chatapp.dto.CompleteUploadRequest;
 import com.ktb.chatapp.dto.StandardResponse;
 import com.ktb.chatapp.model.File;
 import com.ktb.chatapp.service.DirectUploadException;
-import com.ktb.chatapp.service.DirectUploadService;
+import com.ktb.chatapp.service.FileService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.HashMap;
@@ -19,13 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class DirectUploadCompletionController {
-    private final DirectUploadService directUploadService;
+    private final FileService fileService;
 
     @PostMapping("/api/files/upload/complete")
     public ResponseEntity<?> completeChat(
             @Valid @RequestBody CompleteUploadRequest request, Principal principal) {
         try {
-            return chatSuccess(directUploadService.completeChat(principal.getName(), request.uploadId()));
+            return chatSuccess(fileService.completeChatUpload(principal.getName(), request.uploadId()));
         } catch (DirectUploadException ex) {
             return ResponseEntity.status(ex.getStatus()).body(StandardResponse.error(ex.getMessage()));
         } catch (UsernameNotFoundException ex) {
@@ -40,7 +40,7 @@ public class DirectUploadCompletionController {
             @Valid @RequestBody CompleteUploadRequest request, Principal principal) {
         try {
             return ResponseEntity.ok(
-                    directUploadService.completeProfile(principal.getName(), request.uploadId()));
+                    fileService.completeProfileUpload(principal.getName(), request.uploadId()));
         } catch (DirectUploadException ex) {
             return ResponseEntity.status(ex.getStatus()).body(StandardResponse.error(ex.getMessage()));
         } catch (UsernameNotFoundException ex) {
