@@ -25,6 +25,13 @@ export const chatRoomReducer = (state, action) => {
         loading: true,
         error: null,
       };
+    case 'room/entered':
+      return {
+        ...state,
+        room: action.room,
+        loading: false,
+        error: null,
+      };
     case 'room/setupSucceeded':
       return {
         ...state,
@@ -131,6 +138,7 @@ export const useChatRoomState = () => {
 
   const actions = useMemo(() => ({
     setupStarted: () => dispatch({ type: 'room/setupStarted' }),
+    roomEntered: room => dispatch({ type: 'room/entered', room }),
     setupSucceeded: room => dispatch({ type: 'room/setupSucceeded', room }),
     setupFailed: error => dispatch({ type: 'room/setupFailed', error }),
     cleanupManual: () => dispatch({ type: 'room/cleanupManual' }),

@@ -8,7 +8,7 @@ const calloutFiles = [
   'components/ProfileImageUpload.js',
   'features/chat/room/ChatRoomView.js',
   'features/chat/rooms/ChatRoomsView.js',
-  'pages/chat/new.js',
+  'app/chat/new/page.js',
   'pages/index.js',
   'pages/profile.js',
   'pages/register.js',
