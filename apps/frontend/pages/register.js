@@ -239,4 +239,4 @@ const Register = () => {
   );
 };
 
-export default withoutAuth(Register);
+export default withoutAuth(Register, { redirectAuthenticated: false });

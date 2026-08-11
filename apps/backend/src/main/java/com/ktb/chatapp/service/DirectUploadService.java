@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -45,11 +44,7 @@ public class DirectUploadService {
     private final UserRepository userRepository;
     private final MongoTemplate mongoTemplate;
 
-    @Value("${file.storage.s3.direct-upload-enabled:false}")
-    private boolean directUploadEnabled;
-
     public PresignUploadResponse presign(String email, PresignUploadRequest request) {
-        requireEnabled();
         User owner = userByEmail(email);
         validateRequest(request);
 
@@ -100,7 +95,6 @@ public class DirectUploadService {
         File savedFile = null;
         try {
             verifyStoredObject(session);
-            markStoredObjectCompleted(session);
             savedFile = fileRepository.save(File.builder()
                     .filename(StorageKey.nameOf(session.getKey()))
                     .originalname(session.getOriginalName())
@@ -140,7 +134,6 @@ public class DirectUploadService {
         boolean userSaved = false;
         try {
             verifyStoredObject(session);
-            markStoredObjectCompleted(session);
             owner.setProfileImage(session.getKey());
             owner.setUpdatedAt(LocalDateTime.now());
             userRepository.save(owner);
@@ -169,7 +162,6 @@ public class DirectUploadService {
     }
 
     private UploadSession claim(String uploadId, String ownerId, UploadPurpose purpose) {
-        requireEnabled();
         Instant now = Instant.now();
         Query query = Query.query(Criteria.where("id").is(uploadId)
                 .and("ownerId").is(ownerId)
@@ -225,22 +217,9 @@ public class DirectUploadService {
         }
     }
 
-    private void markStoredObjectCompleted(UploadSession session) {
-        if (!storagePort.markUploadCompleted(session.getKey())) {
-            throw new DirectUploadException(
-                    HttpStatus.CONFLICT, "현재 저장소는 직접 업로드 완료 처리를 지원하지 않습니다.");
-        }
-    }
-
     private User userByEmail(String email) {
         return userRepository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
-    }
-
-    private void requireEnabled() {
-        if (!directUploadEnabled) {
-            throw new DirectUploadException(HttpStatus.CONFLICT, "S3 직접 업로드가 비활성화되어 있습니다.");
-        }
     }
 
     private void failAndDelete(UploadSession session) {

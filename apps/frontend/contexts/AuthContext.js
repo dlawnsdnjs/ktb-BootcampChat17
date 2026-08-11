@@ -135,8 +135,11 @@ export const AuthProviderWithRouter = ({ children, router }) => {
   // 회원가입
   const register = useCallback(async (userData) => {
     const registeredUser = await authService.register(userData);
+    if (registeredUser?.token && registeredUser?.sessionId) {
+      saveUser(registeredUser);
+    }
     return registeredUser;
-  }, []);
+  }, [saveUser]);
 
   // 프로필 업데이트 (API 호출 + 상태 저장)
   const updateProfile = useCallback(async (updates) => {
@@ -328,7 +331,7 @@ export const withAuth = (WrappedComponent) => {
  *
  * 이미 로그인한 사용자는 /chat으로 리다이렉트
  */
-export const withoutAuth = (WrappedComponent) => {
+export const withoutAuth = (WrappedComponent, { redirectAuthenticated = true } = {}) => {
   const WithoutAuthComponent = (props) => {
     const router = useRouter();
     const { isAuthenticated, isLoading } = useAuth();
@@ -336,11 +339,13 @@ export const withoutAuth = (WrappedComponent) => {
     const redirect = typeof router.query.redirect === 'string'
       ? router.query.redirect
       : undefined;
+    const shouldRedirect = redirectAuthenticated && isAuthenticated;
 
     useEffect(() => {
       // 최초 인증 확인이 끝난 뒤 이미 로그인한 사용자만 이동시킨다.
       // 로그인 폼에서 인증 상태가 바뀐 뒤에는 폼이 목적지로 한 번만 이동한다.
       if (
+        !redirectAuthenticated ||
         !router.isReady ||
         isLoading ||
         initialAuthCheckCompleted.current
@@ -353,10 +358,10 @@ export const withoutAuth = (WrappedComponent) => {
       if (isAuthenticated) {
         router.replace(redirect || '/chat');
       }
-    }, [isAuthenticated, isLoading, redirect, router]);
+    }, [isAuthenticated, isLoading, redirect, redirectAuthenticated, router]);
 
     // 로딩 중이거나 이미 로그인된 사용자인 경우 로딩 화면
-    if (isLoading || isAuthenticated) {
+    if (isLoading || shouldRedirect) {
       return (
         <div style={{
           display: 'flex',

@@ -9,6 +9,11 @@ const additionalDevOrigins = (process.env.DEV_ALLOWED_ORIGINS || '')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // 저장소 모드는 공개 설정이며 Backend와 같은 변수명을 쓴다. Next.js client
+  // bundle에는 명시적으로 선언한 값만 포함되므로 FILE_STORAGE_TYPE만 노출한다.
+  env: {
+    FILE_STORAGE_TYPE: process.env.FILE_STORAGE_TYPE || 'local'
+  },
   // 로그인 화면의 공식 경로는 E2E와 기존 사용자 흐름이 사용하는 루트(`/`)다.
   // 이전 `/login` 진입도 같은 화면으로 수렴시켜 로그인 실패 시 URL 계약을 유지한다.
   async redirects() {
@@ -24,6 +29,7 @@ const nextConfig = {
   // localhost는 Next가 항상 허용하므로 이 목록이 로컬 접속에 영향을 주지 않는다.
   // 패턴은 점 단위로 매칭돼서 사설망 IP는 네 칸을 다 써야 한다 — '192.168.*'는 매칭되지 않는다.
   allowedDevOrigins: [
+    '127.0.0.1',
     '192.168.*.*',
     '10.*.*.*',
     ...additionalDevOrigins

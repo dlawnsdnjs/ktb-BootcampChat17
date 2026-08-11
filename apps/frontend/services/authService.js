@@ -108,15 +108,26 @@ class AuthService {
         API_REQUEST_METRICS.REGISTER,
         () => api.post('/api/auth/register', userData)
       );
+
+      if (response.data?.success && response.data?.token && response.data?.user) {
+        return {
+          id: response.data.user._id,
+          name: response.data.user.name,
+          email: response.data.user.email,
+          profileImage: response.data.user.profileImage,
+          token: response.data.token,
+          sessionId: response.data.sessionId
+        };
+      }
+
+      if (response.data?.success) {
+        return response.data;
+      }
+
+      throw new Error(response.data?.message || '회원가입에 실패했습니다.');
     } catch (error) {
       throw this._handleError(error);
     }
-
-    if (response.data?.success) {
-      return response.data;
-    }
-
-    throw new Error(response.data?.message || '회원가입에 실패했습니다.');
   }
   
   /**

@@ -115,13 +115,26 @@ public class AuthController {
                     request.getHeader("User-Agent")
             );
 
+            SessionCreationResult sessionInfo =
+                    sessionService.createSession(user.getId(), metadata);
+
+            String token = jwtService.generateToken(
+                    sessionInfo.getSessionId(),
+                    user.getEmail(),
+                    user.getId()
+            );
+
             LoginResponse response = LoginResponse.builder()
                     .success(true)
                     .message("회원가입이 완료되었습니다.")
+                    .token(token)
+                    .sessionId(sessionInfo.getSessionId())
                     .user(AuthUserDto.from(user))
                     .build();
 
             return ResponseEntity.status(HttpStatus.CREATED)
+                    .header("Authorization", "Bearer " + token)
+                    .header("x-session-id", sessionInfo.getSessionId())
                     .body(response);
 
         } catch (org.springframework.dao.DuplicateKeyException e) {

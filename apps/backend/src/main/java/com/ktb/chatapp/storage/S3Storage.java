@@ -14,9 +14,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.Tag;
-import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -28,7 +25,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @ConditionalOnProperty(name = "file.storage.type", havingValue = "s3")
 public class S3Storage implements StoragePort {
@@ -68,7 +67,7 @@ public class S3Storage implements StoragePort {
             s3Client.putObject(request.build(), RequestBody.fromInputStream(content, size));
             return new StoredObject(key, size);
         } catch (RuntimeException ex) {
-            throw storageFailure("저장");
+            throw storageFailure("저장", ex);
         }
     }
 
@@ -85,9 +84,9 @@ public class S3Storage implements StoragePort {
             if (ex.statusCode() == 404) {
                 return Optional.empty();
             }
-            throw storageFailure("조회");
+            throw storageFailure("조회", ex);
         } catch (RuntimeException ex) {
-            throw storageFailure("조회");
+            throw storageFailure("조회", ex);
         }
     }
 
@@ -100,7 +99,7 @@ public class S3Storage implements StoragePort {
                     .key(key)
                     .build());
         } catch (RuntimeException ex) {
-            throw storageFailure("삭제");
+            throw storageFailure("삭제", ex);
         }
     }
 
@@ -118,7 +117,6 @@ public class S3Storage implements StoragePort {
                 .bucket(bucket)
                 .key(key)
                 .contentType(contentType)
-                .tagging("upload-state=pending")
                 .build();
         try {
             URI uri = s3Presigner.presignPutObject(PutObjectPresignRequest.builder()
@@ -130,11 +128,9 @@ public class S3Storage implements StoragePort {
             return Optional.of(new PresignedUpload(
                     uri,
                     Instant.now().plus(ttl),
-                    Map.of(
-                            "Content-Type", contentType,
-                            "x-amz-tagging", "upload-state=pending")));
+                    Map.of("Content-Type", contentType)));
         } catch (Exception ex) {
-            throw storageFailure("업로드 URL 발급");
+            throw storageFailure("업로드 URL 발급", ex);
         }
     }
 
@@ -152,26 +148,9 @@ public class S3Storage implements StoragePort {
             if (ex.statusCode() == 404) {
                 return Optional.empty();
             }
-            throw storageFailure("메타데이터 조회");
+            throw storageFailure("메타데이터 조회", ex);
         } catch (RuntimeException ex) {
-            throw storageFailure("메타데이터 조회");
-        }
-    }
-
-    @Override
-    public boolean markUploadCompleted(String key) {
-        validateKey(key);
-        try {
-            s3Client.putObjectTagging(PutObjectTaggingRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
-                    .tagging(Tagging.builder()
-                            .tagSet(Tag.builder().key("upload-state").value("completed").build())
-                            .build())
-                    .build());
-            return true;
-        } catch (RuntimeException ex) {
-            throw storageFailure("업로드 완료 표시");
+            throw storageFailure("메타데이터 조회", ex);
         }
     }
 
@@ -198,7 +177,7 @@ public class S3Storage implements StoragePort {
                     .toURI();
             return Optional.of(uri);
         } catch (Exception ex) {
-            throw storageFailure("접근 URL 발급");
+            throw storageFailure("접근 URL 발급", ex);
         }
     }
 
@@ -213,7 +192,9 @@ public class S3Storage implements StoragePort {
         }
     }
 
-    private RuntimeException storageFailure(String operation) {
+    private RuntimeException storageFailure(String operation, Exception cause) {
+        log.error("S3 {} 실패 ({}): {}", operation,
+                cause.getClass().getSimpleName(), cause.getMessage());
         return new RuntimeException("파일 저장소 " + operation + "에 실패했습니다.");
     }
 
