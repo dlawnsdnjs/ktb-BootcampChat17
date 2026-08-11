@@ -73,8 +73,7 @@ public class ConnectionLoginHandler {
                 roomJoinHandler.handleJoinRoom(client, roomId);
             });
 
-            log.info("Socket.IO user connected: {} ({}) - Total concurrent users: {}",
-                    getUserName(client), userId, connectedUsers.size());
+            log.debug("Socket.IO user connected: {} ({})", getUserName(client), userId);
             
         } catch (Exception e) {
             log.error("Error handling Socket.IO connection", e);
@@ -101,15 +100,14 @@ public class ConnectionLoginHandler {
                 userRooms.get(userId).forEach(roomId ->
                         roomLeaveHandler.handleLeaveRoom(client, roomId));
             } else {
-                log.warn("Socket.IO disconnect: User {} has a different active connection. Skipping cleanup.", userId);
+                log.debug("Socket.IO disconnect: User {} has a different active connection. Skipping cleanup.", userId);
             }
 
             client.leaveRooms(connectionRooms(getUserDto(client)));
             client.del("user");
             client.disconnect();
 
-            log.info("Socket.IO user disconnected: {} ({}) - Total concurrent users: {}",
-                    userName, userId, connectedUsers.size());
+            log.debug("Socket.IO user disconnected: {} ({})", userName, userId);
         } catch (Exception e) {
             log.error("Error handling Socket.IO disconnection", e);
             client.sendEvent(ERROR, Map.of(

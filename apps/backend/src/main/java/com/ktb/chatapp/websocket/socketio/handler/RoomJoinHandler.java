@@ -126,7 +126,7 @@ public class RoomJoinHandler {
             socketIOServer.getRoomOperations(roomId)
                 .sendEvent(PARTICIPANTS_UPDATE, participants);
 
-            log.info("User {} joined room {} successfully. Message count: {}, hasMore: {}",
+            log.debug("User {} joined room {} successfully. Message count: {}, hasMore: {}",
                 userName, roomId, messageLoadResult.getMessages().size(), messageLoadResult.isHasMore());
 
         } catch (Exception e) {

@@ -38,7 +38,7 @@ public class SocketIOEventListener {
     public void handleRoomCreatedEvent(RoomCreatedEvent event) {
         try {
             roomListEventDispatcher.enqueueCreated(event.getRoomResponse());
-            log.info("roomCreated 이벤트 발송: roomId={}", event.getRoomResponse().getId());
+            log.debug("roomCreated 이벤트 발송: roomId={}", event.getRoomResponse().getId());
         } catch (Exception e) {
             log.error("roomCreated 이벤트 발송 실패", e);
         }
@@ -48,7 +48,7 @@ public class SocketIOEventListener {
     public void handleRoomUpdatedEvent(RoomUpdatedEvent event) {
         try {
             roomListEventDispatcher.enqueueUpdated(event.getRoomId(), event.getRoomResponse());
-            log.info("roomUpdate 이벤트 발송: roomId={}", event.getRoomId());
+            log.debug("roomUpdate 이벤트 발송: roomId={}", event.getRoomId());
         } catch (Exception e) {
             log.error("roomUpdate 이벤트 발송 실패: roomId={}", event.getRoomId(), e);
         }

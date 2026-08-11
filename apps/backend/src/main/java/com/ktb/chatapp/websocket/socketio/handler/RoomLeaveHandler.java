@@ -72,7 +72,7 @@ public class RoomLeaveHandler {
             client.leaveRoom(roomId);
             userRooms.remove(userId, roomId);
             
-            log.info("User {} left room {}", userName, room.getName());
+            log.debug("User {} left room {}", userName, room.getName());
             
             log.debug("Leave room cleanup - roomId: {}, userId: {}", roomId, userId);
             

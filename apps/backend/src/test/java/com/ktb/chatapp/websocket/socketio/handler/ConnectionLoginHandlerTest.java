@@ -63,6 +63,7 @@ class ConnectionLoginHandlerTest {
         verify(client).joinRooms(Set.of(
                 "user:" + user.id(),
                 "session:" + user.authSessionId()));
+        verify(connectedUsers, never()).size();
         verify(socketIOServer, never()).getRoomOperations(anyString());
     }
 
@@ -115,6 +116,7 @@ class ConnectionLoginHandlerTest {
                 "session:" + user.authSessionId()));
         verify(client).del("user");
         verify(client).disconnect();
+        verify(connectedUsers, never()).size();
     }
 
     @Test
