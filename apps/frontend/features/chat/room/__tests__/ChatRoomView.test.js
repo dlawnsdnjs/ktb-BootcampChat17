@@ -1,7 +1,9 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ChatRoomView from '../ChatRoomView';
+
+const chatRoomOverrides = {};
 
 vi.mock('../useChatRoom', () => ({
   useChatRoom: () => ({
@@ -41,6 +43,8 @@ vi.mock('../useChatRoom', () => ({
     loadingMessages: false,
     hasMoreMessages: false,
     handleLoadMore: vi.fn(),
+    isInitialized: true,
+    ...chatRoomOverrides,
   }),
 }));
 
@@ -53,10 +57,16 @@ vi.mock('@/components/ChatMessages', () => ({
 }));
 
 vi.mock('@/components/ChatInput', () => ({
-  default: () => <div>chat input</div>,
+  default: ({ disabled }) => <div>chat input: {disabled ? 'disabled' : 'enabled'}</div>,
 }));
 
 describe('ChatRoomView', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(chatRoomOverrides)) {
+      delete chatRoomOverrides[key];
+    }
+  });
+
   it('keeps messages visible while disconnected and defers to the status badge', () => {
     render(<ChatRoomView roomId="room-1" onNavigate={vi.fn()} onReplace={vi.fn()} asPath="/chat/room-1" />);
 
@@ -64,5 +74,23 @@ describe('ChatRoomView', () => {
     expect(screen.getByText('chat messages')).toBeInTheDocument();
     expect(screen.getByText('room info: disconnected')).toBeInTheDocument();
     expect(screen.queryByText(/연결이 끊어졌습니다/)).not.toBeInTheDocument();
+  });
+
+  it('renders the room shell while the initial messages are still loading', () => {
+    chatRoomOverrides.isInitialized = false;
+
+    render(<ChatRoomView roomId="room-1" onNavigate={vi.fn()} onReplace={vi.fn()} asPath="/chat/room-1" />);
+
+    expect(screen.getByTestId('chat-messages-loading')).toBeInTheDocument();
+    expect(screen.getByText('chat input: disabled')).toBeInTheDocument();
+    expect(screen.getByText('room info: disconnected')).toBeInTheDocument();
+  });
+
+  it('enables the composer once the room is connected and initialized', () => {
+    chatRoomOverrides.connectionStatus = 'connected';
+
+    render(<ChatRoomView roomId="room-1" onNavigate={vi.fn()} onReplace={vi.fn()} asPath="/chat/room-1" />);
+
+    expect(screen.getByText('chat input: enabled')).toBeInTheDocument();
   });
 });

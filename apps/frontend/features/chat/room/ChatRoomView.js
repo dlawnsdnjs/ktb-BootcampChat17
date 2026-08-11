@@ -34,6 +34,7 @@ const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
     loadingMessages,
     hasMoreMessages,
     handleLoadMore,
+    isInitialized,
   } = useChatRoom({ roomId, onNavigate, onReplace, asPath });
 
   const renderLoadingState = () => (
@@ -83,15 +84,18 @@ const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
   );
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || !isInitialized) {
       return (
-        <div className="d-flex align-items-center justify-content-center p-4">
+        <div
+          className="d-flex align-items-center justify-content-center p-4"
+          data-testid="chat-messages-loading"
+        >
           <Spinner
             size="md"
             colorPalette="primary"
-            aria-label="채팅방 연결 중"
+            aria-label="메시지 불러오는 중"
           />
-          <span>채팅방 연결 중...</span>
+          <span>메시지를 불러오는 중...</span>
         </div>
       );
     }
@@ -181,7 +185,7 @@ const ChatRoomView = ({ roomId, onNavigate, onReplace, asPath }) => {
         <ChatInput
           onSubmit={handleMessageSubmit}
           fileInputRef={fileInputRef}
-          disabled={connectionStatus !== 'connected'}
+          disabled={connectionStatus !== 'connected' || !isInitialized}
           room={room}
         />
       </VStack>

@@ -13,6 +13,7 @@ export const useRoomsSocket = ({
   setRooms,
 }) => {
   const socketRef = useRef(null);
+  const unsubscribeRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.token) return;
@@ -74,6 +75,12 @@ export const useRoomsSocket = ({
         Object.entries(handlers).forEach(([event, handler]) => {
           socket.on(event, handler);
         });
+
+        unsubscribeRef.current = () => {
+          Object.entries(handlers).forEach(([event, handler]) => {
+            socket.off(event, handler);
+          });
+        };
       } catch (error) {
         if (!isSubscribed) return;
 
@@ -92,10 +99,13 @@ export const useRoomsSocket = ({
 
     return () => {
       isSubscribed = false;
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
+
+      socketRef.current = null;
     };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
