@@ -15,15 +15,17 @@ import {
 } from '@vapor-ui/core';
 import authService from '@/services/authService';
 
-export default function LoginForm({ login, redirect, onNavigate, registered = false }) {
+export default function LoginForm({ login, redirect, onNavigate = () => {}, registered = false }) {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [serverNotice, setServerNotice] = useState(null);
   const submittingRef = useRef(false);
+  const isBusy = loading || redirecting;
 
   useEffect(() => {
     let active = true;
@@ -62,8 +64,19 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
         password: formData.password,
       });
 
-      onNavigate(redirect || '/chat');
+      // 로그인 성공 후에는 라우팅이 시작될 때까지 폼을 잠근다.
+      setRedirecting(true);
+      const navigation = onNavigate(redirect || '/chat');
+
+      // Pages Router는 navigation Promise를 반환하지만 App Router는 void를
+      // 반환한다. Promise를 지원하는 경우에만 이동 완료를 기다리고,
+      // App Router에서는 컴포넌트가 unmount될 때까지 redirecting 상태를 유지한다.
+      if (navigation && typeof navigation.then === 'function') {
+        await navigation;
+        setRedirecting(false);
+      }
     } catch (submitError) {
+      setRedirecting(false);
       setError(submitError.message || '로그인 처리 중 오류가 발생했습니다.');
     } finally {
       submittingRef.current = false;
@@ -114,6 +127,12 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
           </Callout.Root>
         )}
 
+        {redirecting && (
+          <Text role="status" aria-live="polite" data-testid="login-redirect-status">
+            로그인 완료. 페이지로 이동 중입니다.
+          </Text>
+        )}
+
         <VStack $css={{ gap: '$400' }}>
           <VStack $css={{ gap: '$200' }}>
             <Field.Root>
@@ -128,7 +147,7 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
                   size="lg"
                   type="email"
                   required
-                  disabled={loading}
+                  disabled={isBusy}
                   value={formData.email}
                   onValueChange={(value) => setFormData((previous) => ({ ...previous, email: value }))}
                   placeholder="이메일을 입력하세요"
@@ -151,7 +170,7 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
                   size="lg"
                   type="password"
                   required
-                  disabled={loading}
+                  disabled={isBusy}
                   value={formData.password}
                   onValueChange={(value) => setFormData((previous) => ({ ...previous, password: value }))}
                   placeholder="비밀번호를 입력하세요"
@@ -165,10 +184,11 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
           <Button
             type="submit"
             size="lg"
-            disabled={loading}
+            disabled={isBusy}
+            aria-busy={isBusy}
             data-testid="login-submit-button"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {redirecting ? '이동 중...' : loading ? '로그인 중...' : '로그인'}
           </Button>
         </VStack>
 
@@ -179,7 +199,7 @@ export default function LoginForm({ login, redirect, onNavigate, registered = fa
             size="sm"
             variant="ghost"
             onClick={() => onNavigate('/register')}
-            disabled={loading}
+            disabled={isBusy}
           >
             회원가입
           </Button>
