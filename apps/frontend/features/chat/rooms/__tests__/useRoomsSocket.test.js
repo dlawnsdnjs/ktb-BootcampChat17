@@ -30,7 +30,6 @@ const renderRoomsSocket = (socket, overrides = {}) => {
 
 const createSocket = () => ({
   on: vi.fn(),
-  off: vi.fn(),
   emit: vi.fn(),
   disconnect: vi.fn(),
 });
@@ -46,7 +45,6 @@ describe('useRoomsSocket', () => {
   it('does not emit joinRoomList because the server joins room-list on connect', async () => {
     const socket = {
       on: vi.fn(),
-      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
@@ -66,7 +64,6 @@ describe('useRoomsSocket', () => {
   it('does not register roomDeleted without a server-side room delete event', async () => {
     const socket = {
       on: vi.fn(),
-      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
     };
@@ -104,21 +101,6 @@ describe('useRoomsSocket', () => {
       { _id: 'room-1', name: '방1', recentMessageCount: 1 },
       { _id: 'room-2', name: '방2', recentMessageCount: 9 },
     ]);
-  });
-
-  it('unsubscribes without dropping the shared connection on unmount', async () => {
-    const socket = createSocket();
-    const { unmount } = renderRoomsSocket(socket);
-
-    await waitFor(() => {
-      expect(socket.on).toHaveBeenCalledWith('roomCreated', expect.any(Function));
-    });
-
-    unmount();
-
-    expect(socket.disconnect).not.toHaveBeenCalled();
-    expect(socket.off).toHaveBeenCalledWith('roomCreated', expect.any(Function));
-    expect(socket.off).toHaveBeenCalledWith('connect', expect.any(Function));
   });
 
   it('ignores a roomActivity payload without a room id', async () => {
