@@ -5,7 +5,9 @@ import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.SocketIOServer;
 import com.ktb.chatapp.dto.FetchMessagesRequest;
 import com.ktb.chatapp.dto.FetchMessagesResponse;
+import com.ktb.chatapp.dto.JoinRoomSuccessResponse;
 import com.ktb.chatapp.dto.MessageResponse;
+import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.model.Message;
 import com.ktb.chatapp.model.MessageType;
 import com.ktb.chatapp.model.Room;
@@ -16,12 +18,16 @@ import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.websocket.socketio.SocketUser;
 import com.ktb.chatapp.websocket.socketio.UserRooms;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,8 +35,15 @@ import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.JOIN_ROOM_ERROR;
 import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.JOIN_ROOM_SUCCESS;
 import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.MESSAGE;
 import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.PARTICIPANTS_UPDATE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +62,10 @@ class RoomJoinHandlerTest {
     @Mock private BroadcastOperations roomOperations;
 
     private RoomJoinHandler handler;
+    private SocketUser socketUser;
+    private User joiningUser;
+    private MessageResponse joinMessageResponse;
+    private FetchMessagesResponse loadResponse;
 
     @BeforeEach
     void setUp() {
@@ -61,6 +78,20 @@ class RoomJoinHandlerTest {
                 messageLoader,
                 messageResponseMapper,
                 roomLeaveHandler);
+
+        socketUser = new SocketUser("user-1", "tester", "session-1", "socket-1");
+        joiningUser = user("user-1", "tester");
+        joinMessageResponse = MessageResponse.builder()
+                .id("message-1")
+                .roomId("room-1")
+                .content("tester님이 입장하였습니다.")
+                .type(MessageType.system)
+                .timestamp(1L)
+                .build();
+        loadResponse = FetchMessagesResponse.builder()
+                .messages(List.of())
+                .hasMore(false)
+                .build();
     }
 
     @Test
@@ -73,24 +104,104 @@ class RoomJoinHandlerTest {
     }
 
     @Test
-    void handleJoinRoom_addsParticipantLoadsMessagesAndBroadcasts() {
-        SocketUser socketUser = new SocketUser("user-1", "tester", "session-1", "socket-1");
-        User user = User.builder().id("user-1").name("tester").email("tester@example.com").build();
-        Room room = Room.builder().id("room-1").name("room").participantIds(Set.of("user-1")).build();
-        MessageResponse joinMessageResponse = MessageResponse.builder()
-                .id("message-1")
-                .roomId("room-1")
-                .content("tester님이 입장하였습니다.")
-                .type(MessageType.system)
-                .timestamp(1L)
-                .build();
-        FetchMessagesResponse loadResponse = FetchMessagesResponse.builder()
-                .messages(List.of())
-                .hasMore(false)
-                .build();
+    void handleJoinRoom_existingParticipantSkipsAddAndUsesSingleRoomAndBatchUserReads() {
+        User otherUser = user("user-2", "other");
+        Room room = room(Set.of("user-1", "user-2"));
+        stubSuccessfulJoin(room, List.of(joiningUser, otherUser));
 
+        handler.handleJoinRoom(client, "room-1");
+
+        verify(roomRepository, never()).addParticipant(any(), any());
+        verify(roomRepository, times(1)).findById("room-1");
+        verify(userRepository, times(1)).findAllById(any());
+    }
+
+    @Test
+    void handleJoinRoom_newParticipantAddsOnceAndIncludesParticipantInSuccessResponse() {
+        User otherUser = user("user-2", "other");
+        Room room = room(Set.of("user-2"));
+        stubSuccessfulJoin(room, List.of(joiningUser, otherUser));
+
+        handler.handleJoinRoom(client, "room-1");
+
+        verify(roomRepository, times(1)).addParticipant("room-1", "user-1");
+        verify(roomRepository, times(1)).findById("room-1");
+        verify(userRepository, times(1)).findAllById(any());
+
+        JoinRoomSuccessResponse response = captureSuccessResponse();
+        assertEquals("room-1", response.getRoomId());
+        assertTrue(response.getParticipants().stream()
+                .map(UserResponse::getId)
+                .anyMatch("user-1"::equals));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<String>> idsCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(userRepository).findAllById(idsCaptor.capture());
+        Set<String> requestedIds = new HashSet<>();
+        idsCaptor.getValue().forEach(requestedIds::add);
+        assertEquals(Set.of("user-1", "user-2"), requestedIds);
+    }
+
+    @Test
+    void handleJoinRoom_handlesNullParticipantIds() {
+        Room room = room(null);
+        stubSuccessfulJoin(room, List.of(joiningUser));
+
+        handler.handleJoinRoom(client, "room-1");
+
+        verify(roomRepository).addParticipant("room-1", "user-1");
+        JoinRoomSuccessResponse response = captureSuccessResponse();
+        assertEquals(List.of("user-1"), response.getParticipants().stream()
+                .map(UserResponse::getId)
+                .toList());
+    }
+
+    @Test
+    void handleJoinRoom_rejectsMissingRoomWithExistingError() {
         when(client.get("user")).thenReturn(socketUser);
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(joiningUser));
+        when(roomRepository.findById("room-1")).thenReturn(Optional.empty());
+
+        handler.handleJoinRoom(client, "room-1");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> errorCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(client).sendEvent(eq(JOIN_ROOM_ERROR), errorCaptor.capture());
+        assertEquals("채팅방을 찾을 수 없습니다.", errorCaptor.getValue().get("message"));
+        verify(roomRepository, times(1)).findById("room-1");
+        verify(roomRepository, never()).addParticipant(any(), any());
+        verify(userRepository, never()).findAllById(any());
+    }
+
+    @Test
+    void handleJoinRoom_preservesSuccessPayloadAndMessageThenParticipantsBroadcasts() {
+        User otherUser = user("user-2", "other");
+        Room room = room(Set.of("user-1", "missing-user", "user-2"));
+        stubSuccessfulJoin(room, List.of(joiningUser, otherUser));
+
+        handler.handleJoinRoom(client, "room-1");
+
+        verify(client).joinRoom("room-1");
+        verify(userRooms).add("user-1", "room-1");
+        JoinRoomSuccessResponse response = captureSuccessResponse();
+        assertEquals(List.of(), response.getMessages());
+        assertFalse(response.isHasMore());
+        assertEquals(List.of(), response.getActiveStreams());
+        assertEquals(Set.of("user-1", "user-2"), response.getParticipants().stream()
+                .map(UserResponse::getId)
+                .collect(java.util.stream.Collectors.toSet()));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UserResponse>> participantsCaptor = ArgumentCaptor.forClass(List.class);
+        InOrder broadcastOrder = inOrder(roomOperations);
+        broadcastOrder.verify(roomOperations).sendEvent(MESSAGE, joinMessageResponse);
+        broadcastOrder.verify(roomOperations).sendEvent(eq(PARTICIPANTS_UPDATE), participantsCaptor.capture());
+        assertEquals(response.getParticipants(), participantsCaptor.getValue());
+    }
+
+    private void stubSuccessfulJoin(Room room, List<User> participantUsers) {
+        when(client.get("user")).thenReturn(socketUser);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(joiningUser));
         when(roomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(userRooms.isInRoom("user-1", "room-1")).thenReturn(false);
         when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
@@ -101,17 +212,31 @@ class RoomJoinHandlerTest {
         });
         when(messageLoader.loadMessages(any(FetchMessagesRequest.class), eq("user-1")))
                 .thenReturn(loadResponse);
+        when(userRepository.findAllById(any())).thenReturn(participantUsers);
         when(messageResponseMapper.mapToMessageResponse(any(Message.class), eq(null)))
                 .thenReturn(joinMessageResponse);
         when(socketIOServer.getRoomOperations("room-1")).thenReturn(roomOperations);
+    }
 
-        handler.handleJoinRoom(client, "room-1");
+    private JoinRoomSuccessResponse captureSuccessResponse() {
+        ArgumentCaptor<Object> responseCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(client).sendEvent(eq(JOIN_ROOM_SUCCESS), responseCaptor.capture());
+        return assertInstanceOf(JoinRoomSuccessResponse.class, responseCaptor.getValue());
+    }
 
-        verify(roomRepository).addParticipant("room-1", "user-1");
-        verify(client).joinRoom("room-1");
-        verify(userRooms).add("user-1", "room-1");
-        verify(client).sendEvent(eq(JOIN_ROOM_SUCCESS), any());
-        verify(roomOperations).sendEvent(MESSAGE, joinMessageResponse);
-        verify(roomOperations).sendEvent(eq(PARTICIPANTS_UPDATE), any());
+    private Room room(Set<String> participantIds) {
+        return Room.builder()
+                .id("room-1")
+                .name("room")
+                .participantIds(participantIds)
+                .build();
+    }
+
+    private User user(String id, String name) {
+        return User.builder()
+                .id(id)
+                .name(name)
+                .email(name + "@example.com")
+                .build();
     }
 }
