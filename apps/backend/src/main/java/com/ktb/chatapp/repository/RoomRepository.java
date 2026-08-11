@@ -1,11 +1,6 @@
 package com.ktb.chatapp.repository;
 
 import com.ktb.chatapp.model.Room;
-import com.ktb.chatapp.service.cache.ChatReadCacheNames;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
@@ -17,18 +12,7 @@ import java.util.List;
 @Repository
 public interface RoomRepository extends MongoRepository<Room, String> {
 
-    @Cacheable(cacheNames = ChatReadCacheNames.ROOM_LIST, sync = true)
     List<Room> findAllByOrderByCreatedAtDesc();
-
-    @Override
-    @Cacheable(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#id", sync = true)
-    Optional<Room> findById(String id);
-
-    @Override
-    @Caching(
-            put = @CachePut(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#result.id"),
-            evict = @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_LIST, allEntries = true))
-    <S extends Room> S save(S entity);
 
     // 가장 최근에 생성된 방 조회 (Health Check용)
     @Query(value = "{}", sort = "{ 'createdAt': -1 }")
@@ -40,17 +24,9 @@ public interface RoomRepository extends MongoRepository<Room, String> {
 
     @Query("{'_id': ?0}")
     @Update("{'$addToSet': {'participantIds': ?1}}")
-    @Caching(evict = {
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#roomId"),
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_LIST, allEntries = true)
-    })
     void addParticipant(String roomId, String userId);
 
     @Query("{'_id': ?0}")
     @Update("{'$pull': {'participantIds': ?1}}")
-    @Caching(evict = {
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_BY_ID, key = "#roomId"),
-        @CacheEvict(cacheNames = ChatReadCacheNames.ROOM_LIST, allEntries = true)
-    })
     void removeParticipant(String roomId, String userId);
 }
