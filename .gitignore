@@ -1,0 +1,21 @@
+# Dependencies
+**/node_modules/
+
+# Build outputs
+**/.next/
+**/target/
+
+# Local environment files
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+!**/.env.production.example
+
+# IDE / OS files
+**/.idea/
+**/*.iml
+.DS_Store
+
+# Maven Wrapper downloaded cache
+**/.mvn/wrapper/maven-wrapper.jar

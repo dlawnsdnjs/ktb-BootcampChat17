@@ -4,6 +4,7 @@ import com.ktb.chatapp.dto.ProfileImageResponse;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.storage.LocalStorage;
+import com.ktb.chatapp.storage.StoragePort;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,9 +22,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserService 단위 테스트")
@@ -79,6 +84,52 @@ class UserServiceTest {
         assertThat(Files.exists(oldFile)).isFalse();
         assertThat(user.getProfileImage()).isEqualTo("profiles/new.jpg");
         assertThat(response.getImageUrl()).isEqualTo("/api/files/profiles/new.jpg");
+    }
+
+    @Test
+    @DisplayName("프로필 교체는 DB 갱신 후 기존 객체를 삭제한다")
+    void uploadProfileImage_DeletesOldObjectAfterDatabaseUpdate() {
+        StoragePort storage = mock(StoragePort.class);
+        userService = new UserService(userRepository, fileService, storage);
+        ReflectionTestUtils.setField(userService, "maxProfileImageSize", 5242880L);
+        User user = User.builder()
+                .id("user-1")
+                .email(EMAIL)
+                .profileImage("profiles/old.jpg")
+                .build();
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(fileService.storeFile(any(), eq("profiles"))).thenReturn("profiles/new.jpg");
+
+        userService.uploadProfileImage(EMAIL, new MockMultipartFile(
+                "file", "new.jpg", "image/jpeg", new byte[] {1}));
+
+        var order = inOrder(userRepository, storage);
+        order.verify(userRepository).save(user);
+        order.verify(storage).delete("profiles/old.jpg");
+    }
+
+    @Test
+    @DisplayName("프로필 DB 갱신 실패 시 새 객체를 삭제하고 이전 key를 복원한다")
+    void uploadProfileImage_DatabaseFailureRollsBackNewObject() {
+        StoragePort storage = mock(StoragePort.class);
+        userService = new UserService(userRepository, fileService, storage);
+        ReflectionTestUtils.setField(userService, "maxProfileImageSize", 5242880L);
+        User user = User.builder()
+                .id("user-1")
+                .email(EMAIL)
+                .profileImage("profiles/old.jpg")
+                .build();
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(fileService.storeFile(any(), eq("profiles"))).thenReturn("profiles/new.jpg");
+        when(userRepository.save(user)).thenThrow(new RuntimeException("database unavailable"));
+
+        assertThatThrownBy(() -> userService.uploadProfileImage(EMAIL, new MockMultipartFile(
+                "file", "new.jpg", "image/jpeg", new byte[] {1})))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("database unavailable");
+
+        assertThat(user.getProfileImage()).isEqualTo("profiles/old.jpg");
+        verify(storage).delete("profiles/new.jpg");
     }
 
     @Test

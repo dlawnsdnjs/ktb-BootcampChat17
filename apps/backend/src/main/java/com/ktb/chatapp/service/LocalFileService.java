@@ -58,7 +58,13 @@ public class LocalFileService implements FileService {
                     .uploadDate(LocalDateTime.now())
                     .build();
 
-            File savedFile = fileRepository.save(fileEntity);
+            File savedFile;
+            try {
+                savedFile = fileRepository.save(fileEntity);
+            } catch (RuntimeException ex) {
+                deleteStoredObjectQuietly(key);
+                throw ex;
+            }
 
             return FileUploadResult.builder()
                     .success(true)
@@ -126,6 +132,14 @@ public class LocalFileService implements FileService {
         } catch (Exception e) {
             log.error("파일 삭제 실패: {}", e.getMessage(), e);
             throw new RuntimeException("파일 삭제 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    private void deleteStoredObjectQuietly(String key) {
+        try {
+            storagePort.delete(key);
+        } catch (RuntimeException cleanupFailure) {
+            log.warn("DB 저장 실패 후 업로드 객체 정리에 실패했습니다: key={}", key);
         }
     }
 }

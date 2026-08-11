@@ -74,18 +74,28 @@ public class UserService {
         // 파일 유효성 검증
         validateProfileImageFile(file);
 
-        // 기존 프로필 이미지 삭제
-        if (user.getProfileImage() != null && !user.getProfileImage().isEmpty()) {
-            deleteOldProfileImage(user.getProfileImage());
-        }
-
         // 새 파일 저장 (보안 검증 포함)
+        String oldProfileImageKey = user.getProfileImage();
+        LocalDateTime oldUpdatedAt = user.getUpdatedAt();
         String profileImageKey = fileService.storeFile(file, "profiles");
 
         // DB에는 key만 저장한다 — URL은 응답 경계에서 조립된다
         user.setProfileImage(profileImageKey);
         user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (RuntimeException ex) {
+            user.setProfileImage(oldProfileImageKey);
+            user.setUpdatedAt(oldUpdatedAt);
+            deleteOldProfileImage(profileImageKey);
+            throw ex;
+        }
+
+        if (oldProfileImageKey != null
+                && !oldProfileImageKey.isEmpty()
+                && !oldProfileImageKey.equals(profileImageKey)) {
+            deleteOldProfileImage(oldProfileImageKey);
+        }
 
         log.info("프로필 이미지 업로드 완료 - User ID: {}, Key: {}", user.getId(), profileImageKey);
 

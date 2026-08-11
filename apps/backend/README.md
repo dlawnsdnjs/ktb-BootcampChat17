@@ -91,6 +91,10 @@ make verify-java
 | `MONGO_URI` | ✅ | 없음 | MongoDB 연결 문자열              |
 | `REDIS_HOST` | ✅ | 없음 | Redis 호스트                    |
 | `REDIS_PORT` | ✅ | 없음 | Redis 포트                      |
+| `FILE_STORAGE_TYPE` | ❌ | `local` | 파일 저장소. 로컬 개발은 `local`, 다중 BE 운영은 `s3` |
+| `FILE_UPLOAD_DIR` | ❌ | `./uploads` | `local` 모드의 업로드 경로 |
+| `S3_BUCKET_NAME` | S3 사용 시 ✅ | 없음 | 파일을 저장할 비공개 S3 버킷명 |
+| `AWS_REGION` | S3 사용 시 ✅ | 없음 | S3 버킷 리전 |
 | `PORT` | ❌ | `5001` | HTTP API 포트 (`server.port`) |
 | `WS_PORT` | ❌ | `5002` | Socket.IO 서버 포트             |
 | `CORS_ALLOWED_ORIGINS` | ❌ | `*` | REST API CORS 허용 Origin 목록. 쉼표로 구분 |
@@ -100,6 +104,10 @@ make verify-java
 | `OPENAI_API_KEY` | ❌ | `your_openai_api_key_here` | OpenAI 호출용 API Key          |
 
 `.env.template` 파일을 복사해 기본 값을 채운 뒤 필요에 따라 수정하세요.
+
+운영 환경에서는 `AWS_ACCESS_KEY_ID`와 `AWS_SECRET_ACCESS_KEY`를 `.env`에 저장하지 않고,
+모든 Backend EC2에 동일한 IAM Instance Profile을 연결합니다. S3 버킷과 IAM 설정, 전환 절차는
+[S3 저장소 운영 가이드](docs/S3_STORAGE_GUIDE.md)를 참고하세요.
 
 예시:
 ```bash

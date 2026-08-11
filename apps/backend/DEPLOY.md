@@ -117,6 +117,11 @@ tail -f logs/app.log
    REDIS_HOST=localhost
    REDIS_PORT=6379
 
+   # 다중 Backend 공용 파일 저장소
+   FILE_STORAGE_TYPE=s3
+   S3_BUCKET_NAME=ktb-chat-files-prod
+   AWS_REGION=ap-northeast-2
+
    # 서버 포트
    PORT=5001
    WS_PORT=5002
@@ -124,6 +129,10 @@ tail -f logs/app.log
    # OpenAI API
    OPENAI_API_KEY=sk-...
    ```
+
+   운영 EC2에서는 AWS 장기 Access Key를 `.env`에 넣지 않습니다. 모든 Backend 인스턴스에
+   같은 IAM Instance Profile을 연결합니다. 버킷 생성과 최소 권한 정책은
+   [S3 저장소 운영 가이드](docs/S3_STORAGE_GUIDE.md)를 참고하세요.
 
 3. **MongoDB 및 Redis 실행 확인**
    ```bash
