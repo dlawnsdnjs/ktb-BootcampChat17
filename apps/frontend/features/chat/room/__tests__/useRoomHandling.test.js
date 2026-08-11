@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '@/lib/api/client';
 import socketClient from '@/lib/socket/socketClient';
@@ -79,7 +79,6 @@ const createHarness = () => {
   };
   const reducerActions = {
     setupStarted: vi.fn(),
-    roomEntered: vi.fn(),
     setupSucceeded: vi.fn(),
     setupFailed: vi.fn(),
     cleanupManual: vi.fn(),
@@ -272,62 +271,6 @@ describe('useRoomHandling', () => {
     );
     expect(harness.setters.setIsInitialized).not.toHaveBeenCalled();
     expect(harness.setupCompleteRef.current).toBe(true);
-  });
-
-  it('fetches room data without waiting for the socket connection', async () => {
-    let resolveConnect;
-    socketClient.connect.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveConnect = resolve;
-      })
-    );
-    const harness = createHarness();
-
-    let setupPromise;
-    act(() => {
-      setupPromise = harness.result.current.setupRoom();
-    });
-
-    await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith('/api/rooms/room-1', expect.any(Object));
-    });
-
-    await act(async () => {
-      resolveConnect(createSocket());
-      await setupPromise;
-    });
-
-    expect(harness.actions.setupSucceeded).toHaveBeenCalled();
-  });
-
-  it('enters the room before the join round trip completes', async () => {
-    let resolveJoin;
-    socketClient.joinRoomAndWait.mockImplementationOnce(
-      () => new Promise((resolve) => {
-        resolveJoin = resolve;
-      })
-    );
-    const harness = createHarness();
-
-    let setupPromise;
-    act(() => {
-      setupPromise = harness.result.current.setupRoom();
-    });
-
-    await waitFor(() => {
-      expect(harness.actions.roomEntered).toHaveBeenCalledWith(
-        expect.objectContaining({ _id: 'room-1' }),
-      );
-    });
-
-    expect(harness.actions.setupSucceeded).not.toHaveBeenCalled();
-
-    await act(async () => {
-      resolveJoin({ roomId: 'room-1', messages: [], hasMore: false });
-      await setupPromise;
-    });
-
-    expect(harness.actions.setupSucceeded).toHaveBeenCalled();
   });
 
   it('falls back to fetching previous messages when join response has no messages', async () => {

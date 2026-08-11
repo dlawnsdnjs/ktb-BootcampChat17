@@ -25,7 +25,6 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
     messageLoadError,
     hasMoreMessages,
     loadingMessages,
-    isInitialized,
   } = state;
 
   const {
@@ -179,7 +178,6 @@ export const useChatRoom = ({ roomId, onNavigate, onReplace, asPath }) => {
     uploadError,
     hasMoreMessages,
     loadingMessages,
-    isInitialized,
 
     // Refs
     fileInputRef,
