@@ -13,8 +13,7 @@ COPY apps/frontend/package.json apps/frontend/package.json
 
 RUN pnpm --dir apps/frontend install --frozen-lockfile
 
-# 프로덕션 빌드에 .env.local이 섞이지 않도록 공통 배포 env만 복사한다.
-COPY apps/frontend/.env.production* apps/frontend/
+COPY apps/frontend/.env* apps/frontend/
 COPY apps/frontend/jsconfig.json apps/frontend/next.config.js apps/frontend/postcss.config.js apps/frontend/tailwind.config.js apps/frontend/
 COPY apps/frontend/app apps/frontend/app
 COPY apps/frontend/components apps/frontend/components
