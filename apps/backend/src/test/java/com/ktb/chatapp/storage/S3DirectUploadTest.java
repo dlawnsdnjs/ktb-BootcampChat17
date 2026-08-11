@@ -10,6 +10,9 @@ import java.net.URL;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -41,6 +44,26 @@ class S3DirectUploadTest {
         assertThat(captor.getValue().putObjectRequest().contentType()).isEqualTo("image/png");
         assertThat(result.requiredHeaders()).containsEntry("Content-Type", "image/png");
         assertThat(result.requiredHeaders()).containsEntry("x-amz-tagging", "upload-state=pending");
+    }
+
+    @Test
+    void realPresignerCreatesUploadUrlWithoutCallingS3() {
+        try (S3Presigner realPresigner = S3Presigner.builder()
+                .region(Region.AP_NORTHEAST_2)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(
+                                "test-access-key-id", "test-secret-access-key")))
+                .build()) {
+            S3Storage realStorage = new S3Storage(s3Client, realPresigner, "test-bucket");
+
+            PresignedUpload result = realStorage.presignUpload(
+                    "chat/file.png", "image/png", Duration.ofMinutes(5)).orElseThrow();
+
+            assertThat(result.url().getScheme()).isEqualTo("https");
+            assertThat(result.url().getQuery()).contains("X-Amz-Signature=");
+            assertThat(result.requiredHeaders())
+                    .containsEntry("x-amz-tagging", "upload-state=pending");
+        }
     }
 
     @Test

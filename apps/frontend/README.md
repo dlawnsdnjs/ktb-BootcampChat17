@@ -37,6 +37,7 @@ cp .env.example .env.local
 PORT=3000
 NEXT_PUBLIC_API_URL=http://localhost:5001
 NEXT_PUBLIC_SOCKET_URL=http://localhost:5002
+FILE_STORAGE_TYPE=local
 ```
 
 > `.env.local`은 프로덕션 빌드(`build:production`)에서도 `.env.production`보다
@@ -45,6 +46,7 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:5002
 **환경 변수 설명:**
 - `NEXT_PUBLIC_API_URL`: 백엔드 REST API 서버 주소
 - `NEXT_PUBLIC_SOCKET_URL`: Socket.IO 서버 주소
+- `FILE_STORAGE_TYPE`: Backend와 공유하는 저장소 모드 (`local` 또는 `s3`)
 
 서버환경에서 실행시 Route 53 에 등록한 도메인을 입력하세요. 예: `https://chat.goorm-ktb-[번호].goorm.team`
 
@@ -121,20 +123,17 @@ docker build -t chat-app-frontend .
 > **참고**: `NEXT_PUBLIC_*` 환경 변수는 빌드 시점에 코드에 인라인됩니다.
 > - 로컬 개발: `.env.local` 파일 사용
 > - 프로덕션: `.env.production` 파일 사용
+> - `FILE_STORAGE_TYPE`은 Backend와 같은 값을 사용 (`s3`면 Presigned PUT)
 >
 > `.env.production`은 커밋되지 않으므로 프로덕션 빌드(`pnpm run build:production`)
 > 전에 템플릿에서 만들고 배포 주소로 값을 고치세요.
 >
 > ```bash
-> # 기존 multipart 업로드 배포
 > cp .env.production.example .env.production
->
-> # 또는 S3 Presigned URL 직접 업로드 배포
-> cp .env.s3.production.example .env.production
 > ```
 >
-> S3 템플릿의 `NEXT_PUBLIC_DIRECT_S3_UPLOAD=true`는 빌드 결과물에 인라인됩니다. 이미 빌드한
-> 이미지를 실행하면서 컨테이너 환경변수만 바꾸는 것으로는 업로드 모드를 전환할 수 없습니다.
+> `.env.production`의 `FILE_STORAGE_TYPE`은 Backend와 같은 값으로 설정해야 합니다.
+> 이 값은 Next.js 빌드 결과물에 들어가므로 저장소 모드를 바꾼 뒤에는 다시 빌드해야 합니다.
 
 ### Docker 컨테이너 실행
 

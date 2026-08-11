@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
@@ -58,7 +60,41 @@ class StoragePortSelectionTest {
                     assertThat(context).doesNotHaveBean(LocalStorage.class);
                     assertThat(context).hasSingleBean(S3Client.class);
                     assertThat(context).hasSingleBean(S3Presigner.class);
+                    assertThat(context.getBean(AwsCredentialsProvider.class))
+                            .isInstanceOf(DefaultCredentialsProvider.class);
                 });
+    }
+
+    @Test
+    @DisplayName("Configured local AWS keys use a static credentials provider")
+    void s3StorageUsesConfiguredLocalCredentials() {
+        contextRunner
+                .withPropertyValues(
+                        "file.storage.type=s3",
+                        "file.storage.s3.bucket=test-bucket",
+                        "file.storage.s3.region=ap-northeast-2",
+                        "file.storage.s3.access-key=test-access-key",
+                        "file.storage.s3.secret-key=test-secret-key")
+                .run(context -> {
+                    AwsCredentialsProvider provider = context.getBean(AwsCredentialsProvider.class);
+
+                    assertThat(provider.resolveCredentials().accessKeyId())
+                            .isEqualTo("test-access-key");
+                    assertThat(provider.resolveCredentials().secretAccessKey())
+                            .isEqualTo("test-secret-key");
+                });
+    }
+
+    @Test
+    @DisplayName("Only one configured local AWS key fails context startup")
+    void s3StorageRejectsIncompleteLocalCredentials() {
+        contextRunner
+                .withPropertyValues(
+                        "file.storage.type=s3",
+                        "file.storage.s3.bucket=test-bucket",
+                        "file.storage.s3.region=ap-northeast-2",
+                        "file.storage.s3.access-key=test-access-key")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

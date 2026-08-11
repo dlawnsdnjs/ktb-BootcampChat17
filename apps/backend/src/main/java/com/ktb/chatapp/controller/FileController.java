@@ -6,7 +6,6 @@ import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.service.FileAccess;
 import com.ktb.chatapp.service.FileAccessService;
 import com.ktb.chatapp.service.FileService;
-import com.ktb.chatapp.service.FileUploadResult;
 import com.ktb.chatapp.service.PreviewNotSupportedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,7 +28,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "파일 (Files)", description = "파일 업로드 및 다운로드 API")
 @Slf4j
@@ -41,64 +39,6 @@ public class FileController {
     private final FileService fileService;
     private final FileAccessService fileAccessService;
     private final UserRepository userRepository;
-
-    /**
-     * 파일 업로드
-     */
-    @Operation(summary = "파일 업로드", description = "파일을 업로드합니다. 최대 50MB까지 가능합니다.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "파일 업로드 성공"),
-        @ApiResponse(responseCode = "400", description = "잘못된 파일",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
-        @ApiResponse(responseCode = "401", description = "인증 실패",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
-        @ApiResponse(responseCode = "413", description = "파일 크기 초과",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
-        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
-    })
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(
-            @Parameter(description = "업로드할 파일") @RequestParam("file") MultipartFile file,
-            Principal principal) {
-        try {
-            User user = userRepository.findByEmail(principal.getName())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
-
-            FileUploadResult result = fileService.uploadFile(file, user.getId());
-
-            if (result.isSuccess()) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "파일 업로드 성공");
-                
-                Map<String, Object> fileData = new HashMap<>();
-                fileData.put("_id", result.getFile().getId());
-                fileData.put("filename", result.getFile().getFilename());
-                fileData.put("originalname", result.getFile().getOriginalname());
-                fileData.put("mimetype", result.getFile().getMimetype());
-                fileData.put("size", result.getFile().getSize());
-                fileData.put("uploadDate", result.getFile().getUploadDate());
-                
-                response.put("file", fileData);
-
-                return ResponseEntity.ok(response);
-            } else {
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("success", false);
-                errorResponse.put("message", "파일 업로드에 실패했습니다.");
-                return ResponseEntity.status(500).body(errorResponse);
-            }
-
-        } catch (Exception e) {
-            log.error("파일 업로드 중 에러 발생", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", "파일 업로드 중 오류가 발생했습니다.");
-            errorResponse.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
 
     /**
      * 보안이 강화된 파일 다운로드

@@ -40,13 +40,15 @@ public class SecurityConfig {
             "Authorization",
             "x-auth-token",
             "x-session-id",
+            "x-amz-tagging",
             "Cache-Control",
             "Pragma"
     );
 
     private static final List<String> CORS_EXPOSED_HEADERS = List.of(
             "x-auth-token",
-            "x-session-id"
+            "x-session-id",
+            "ETag"
     );
 
     private static final List<String> CORS_ALLOWED_METHODS = List.of("GET", "POST", "PUT", "DELETE", "OPTIONS");

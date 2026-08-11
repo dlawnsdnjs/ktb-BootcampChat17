@@ -30,7 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class DirectUploadServiceTest {
@@ -46,7 +45,6 @@ class DirectUploadServiceTest {
     @BeforeEach
     void setUp() {
         service = new DirectUploadService(storage, sessions, files, users, mongoTemplate);
-        ReflectionTestUtils.setField(service, "directUploadEnabled", true);
         lenient().when(users.findByEmail("user@example.com")).thenReturn(Optional.of(user));
     }
 
@@ -66,18 +64,6 @@ class DirectUploadServiceTest {
 
         assertThat(response.uploadId()).isEqualTo("upload-1");
         assertThat(response.uploadUrl()).isEqualTo("https://signed.example/upload");
-    }
-
-    @Test
-    void presignIsDisabledByDefaultFlag() {
-        ReflectionTestUtils.setField(service, "directUploadEnabled", false);
-
-        assertThatThrownBy(() -> service.presign("user@example.com",
-                new PresignUploadRequest(UploadPurpose.CHAT_ATTACHMENT, "photo.png", "image/png", 12)))
-                .isInstanceOf(DirectUploadException.class)
-                .extracting(ex -> ((DirectUploadException) ex).getStatus().value())
-                .isEqualTo(409);
-        verify(sessions, never()).save(any());
     }
 
     @Test

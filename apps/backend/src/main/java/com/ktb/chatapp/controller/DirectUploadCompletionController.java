@@ -10,6 +10,7 @@ import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "file.storage.type", havingValue = "s3")
 public class DirectUploadCompletionController {
     private final FileService fileService;
 

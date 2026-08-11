@@ -54,10 +54,12 @@ const Register = () => {
       
       setSuccess(true);
       setLoading(false);
-      
+
+      // 회원가입 직후 인증 정보가 저장된 상태를 먼저 확정한다.
+      // 외부 시나리오가 다음 경로로 직접 이동할 수 있으므로 즉시 라우팅하지 않는다.
       setTimeout(() => {
-        router.push('/');
-      }, 1000);
+        router.push('/chat');
+      }, 1500);
     } catch (err) {
       setError(err.message || '회원가입 처리 중 오류가 발생했습니다.');
       setLoading(false);
@@ -94,7 +96,7 @@ const Register = () => {
             <Callout.Icon>
               <CheckCircleIcon />
             </Callout.Icon>
-            가입성공, 로그인 해 주세요.
+            가입과 로그인이 완료되었습니다.
           </Callout.Root>
         )}
 
@@ -220,4 +222,4 @@ const Register = () => {
   );
 };
 
-export default withoutAuth(Register);
+export default withoutAuth(Register, { redirectAuthenticated: false });

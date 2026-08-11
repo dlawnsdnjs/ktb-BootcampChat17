@@ -62,6 +62,8 @@ public class AuthControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("회원가입이 완료되었습니다."))
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.sessionId").value("mock-session-id"))
                 .andExpect(jsonPath("$.user.email").value(email))
                 .andExpect(jsonPath("$.user.name").value("Test User"));
     }
