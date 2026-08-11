@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import socketClient from '@/lib/socket/socketClient';
+import readReceiptBatcher from '@/lib/socket/readReceiptBatcher';
 import { useRoomHandling } from './useRoomHandling';
 
 const CLEANUP_REASONS = {
@@ -246,6 +247,8 @@ export const useChatRoomLifecycle = ({
 
   useEffect(() => {
     const handleBeforeUnload = () => {
+      readReceiptBatcher.flush(roomId);
+
       if (socketRef.current?.connected && roomId) {
         socketClient.tryLeaveRoom(roomId, socketRef.current);
       }
@@ -254,6 +257,7 @@ export const useChatRoomLifecycle = ({
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      readReceiptBatcher.flush(roomId);
     };
   }, [roomId, socketRef]);
 
